@@ -1,0 +1,119 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+Rectangle {
+    id: root
+    property bool previewMode: false
+    color: colors.palette.base
+    radius: 8
+    clip: true
+    Control { id: colors; visible: false }
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: 12
+        spacing: 8
+        RowLayout {
+            Label { text: root.previewMode ? qsTr("Preview") : qsTr("Explorer"); font.bold: true; font.pixelSize: 16; Layout.fillWidth: true }
+            ToolButton {
+                visible: root.previewMode
+                text: qsTr("Pin")
+                checkable: true
+                checked: appController.preview.pinned
+                onClicked: appController.preview.pinned = checked
+                Accessible.name: qsTr("Pin current preview")
+            }
+        }
+        ColumnLayout {
+            visible: !root.previewMode
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Label { text: qsTr("QUICK ACCESS"); font.pixelSize: 10; font.letterSpacing: 1; opacity: 0.6; Layout.topMargin: 8 }
+            Repeater {
+                model: appController.places
+                delegate: ItemDelegate {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    text: modelData.name
+                    onClicked: appController.workspace.activePane.navigate(modelData.url)
+                    height: 32
+                }
+            }
+            Label { text: qsTr("FOLDERS"); font.pixelSize: 10; font.letterSpacing: 1; opacity: 0.6; Layout.topMargin: 8 }
+            TreeView {
+                id: treeView
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                model: appController.tree
+                clip: true
+                columnWidthProvider: function(column) { return column === 0 ? width : 0 }
+                ScrollBar.vertical: ScrollBar {}
+                delegate: TreeViewDelegate {
+                    id: treeDelegate
+                    implicitHeight: 32
+                    onClicked: appController.navigateTree(treeView.index(row, column))
+                }
+                Accessible.name: qsTr("Folder tree")
+            }
+        }
+        ColumnLayout {
+            visible: root.previewMode
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Label {
+                Layout.fillWidth: true
+                text: appController.preview.title
+                font.bold: true
+                wrapMode: Text.WrapAnywhere
+                textFormat: Text.PlainText
+            }
+            Image {
+                visible: appController.preview.kind === "image"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 220
+                source: visible ? appController.preview.url : ""
+                sourceSize: Qt.size(640, 640)
+                asynchronous: true
+                fillMode: Image.PreserveAspectFit
+            }
+            Label {
+                Layout.fillWidth: true
+                text: appController.preview.details
+                wrapMode: Text.Wrap
+                textFormat: Text.PlainText
+                opacity: 0.7
+                font.pixelSize: 12
+            }
+            ScrollView {
+                visible: appController.preview.kind === "text"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                TextArea {
+                    text: appController.preview.text
+                    textFormat: TextEdit.PlainText
+                    readOnly: true
+                    selectByMouse: true
+                    wrapMode: TextEdit.WrapAnywhere
+                    font.family: "Cascadia Mono"
+                    font.pixelSize: 12
+                    Accessible.name: qsTr("Text preview")
+                }
+            }
+            Label {
+                visible: appController.preview.kind === "none" || appController.preview.kind === "error"
+                Layout.fillWidth: true
+                text: appController.preview.kind === "error" ? appController.preview.error : qsTr("Select one file to preview it.\n\nImages and text stay local. Other files show their details.")
+                wrapMode: Text.Wrap
+                textFormat: Text.PlainText
+                opacity: 0.6
+            }
+            Item { Layout.fillHeight: true; visible: appController.preview.kind !== "text" }
+            Button {
+                visible: appController.preview.kind !== "none"
+                text: qsTr("Open in default app")
+                Layout.fillWidth: true
+                onClicked: appController.native.open(appController.preview.url)
+            }
+        }
+    }
+}

@@ -1,0 +1,21 @@
+HExplorer third-party notices
+
+This build dynamically links Qt 6.8.3 and uses its FluentWinUI3 style.
+Qt is copyright The Qt Company Ltd. and other contributors.
+Qt source: https://download.qt.io/archive/qt/6.8/6.8.3/submodules/
+Qt licensing: https://www.qt.io/licensing/open-source-lgpl-obligations
+Qt third-party code: https://doc.qt.io/qt-6/licenses-used-in-qt.html
+
+The application statically links miniz 3.0.2:
+https://github.com/richgel999/miniz
+Pinned source revision: 293d4db1b7d0ffee9756d035b9ac6f7431ef8492
+Its license is included in licenses/miniz-LICENSE.txt.
+
+The Qt libraries can be replaced with ABI-compatible builds. The application's
+source tree and CMake build instructions accompany this local development
+project. Before redistributing outside this environment, the distributor must
+provide all source/notices/relinking rights required by their Qt license and
+its third-party components, or obtain a suitable commercial license.
+
+The portable package does not install a shell extension or register file
+associations. It is an unsigned development release.

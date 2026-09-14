@@ -1,0 +1,47 @@
+# HExplorer workspace
+
+The Qt/C++/QML desktop application lives in [`Qt`](Qt/README.md).
+The installed Qt SDK stays in `.tools` as a shared development dependency.
+
+```text
+Qt/
+  CMakeLists.txt
+  src/           C++ models, controllers, tasks and platform integration
+  qml/           Fluent Qt Quick interface
+  tests/         QtTest coverage
+  scripts/       Windows build and packaging
+  assets/
+  cmake/
+  packaging/
+  build/         Generated build tree
+  dist/          Portable application and ZIP
+.github/skills/  Project-local agent skills
+.tools/         Shared SDK, not application source
+```
+
+## Build and run
+
+From PowerShell at the workspace root:
+
+```powershell
+.\Qt\scripts\build.ps1 -Test -Package
+.\Qt\dist\HExplorer\HExplorer.exe
+```
+
+Pass `-QtRoot 'C:\Qt\6.8.3\msvc2022_64'` to use another SDK.
+See `Qt\README.md` for prerequisites, shortcuts, architecture and limitations.
+
+## Solution skills
+
+Each skill is a directory under `.github\skills` with a `SKILL.md` entry point:
+
+| Skill | Use for |
+|---|---|
+| `hexplorer-architecture` | C++/QML boundaries, navigation, models and workspace state |
+| `hexplorer-fluent-ui` | Fluent controls, dynamic panes, sidebars, focus and previews |
+| `hexplorer-file-operations` | Copy/move/extract safety, native drag/drop and clipboard |
+| `hexplorer-build-release` | MSVC/Qt builds, targeted tests and standalone Windows packaging |
+
+Skills describe the current implementation and its constraints. They do not
+install dependencies, start background services, or add runtime application
+features merely by being present.

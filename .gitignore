@@ -1,0 +1,6 @@
+/Qt/build/
+/Qt/build-before-relocation/
+/Qt/dist/
+/.tools/
+/Qt/aqtinstall.log
+*.user
