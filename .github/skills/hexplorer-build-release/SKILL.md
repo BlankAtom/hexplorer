@@ -5,6 +5,10 @@ description: "Build, test, run or package HExplorer on Windows with Qt 6.8+, MSV
 
 # HExplorer Windows build and release
 
+For repository commits, also follow
+`..\hexplorer-git-sync\SKILL.md`: after each successful primary-branch commit,
+synchronize that branch with `origin` and verify the remote tip.
+
 ## Paths and prerequisites
 
 The workspace contains `Qt\CMakeLists.txt`. The shared default SDK is

@@ -5,6 +5,10 @@ description: "Implement or troubleshoot HExplorer background copy, move, recycle
 
 # HExplorer file operations and native transfers
 
+For repository commits, also follow
+`..\hexplorer-git-sync\SKILL.md`: after each successful primary-branch commit,
+synchronize that branch with `origin` and verify the remote tip.
+
 Paths are workspace-root relative. Read `Qt\src\operations\TaskManager.h`
 for the current contract and `FileOperationWorker.*` for actual execution.
 Also inspect `Qt\src\core\AppController.*`,

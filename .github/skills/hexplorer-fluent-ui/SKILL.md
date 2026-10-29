@@ -5,6 +5,10 @@ description: "Implement or refine HExplorer's Fluent Qt Quick UI, QML file panes
 
 # HExplorer Fluent UI
 
+For repository commits, also follow
+`..\hexplorer-git-sync\SKILL.md`: after each successful primary-branch commit,
+synchronize that branch with `origin` and verify the remote tip.
+
 Paths are workspace-root relative; the application source root is `Qt`.
 
 ## Read the affected surface

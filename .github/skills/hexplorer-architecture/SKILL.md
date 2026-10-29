@@ -5,6 +5,10 @@ description: "Implement or explain HExplorer's Qt 6 C++/QML architecture, direct
 
 # HExplorer architecture
 
+For repository commits, also follow
+`..\hexplorer-git-sync\SKILL.md`: after each successful primary-branch commit,
+synchronize that branch with `origin` and verify the remote tip.
+
 ## Locate the solution
 
 The workspace root contains `Qt\CMakeLists.txt`. All application paths below

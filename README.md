@@ -41,6 +41,12 @@ Each skill is a directory under `.github\skills` with a `SKILL.md` entry point:
 | `hexplorer-fluent-ui` | Fluent controls, dynamic panes, sidebars, focus and previews |
 | `hexplorer-file-operations` | Copy/move/extract safety, native drag/drop and clipboard |
 | `hexplorer-build-release` | MSVC/Qt builds, targeted tests and standalone Windows packaging |
+| `hexplorer-git-sync` | Synchronize every successful primary-branch commit with the same branch on origin |
+
+Repository policy: after every successful commit on a primary branch, push that
+branch to `origin` and verify that the local and remote tips match. This covers
+code, documentation, configuration and Skills. It does not authorize automatic
+commits or force pushes; report blocked synchronization explicitly.
 
 Skills describe the current implementation and its constraints. They do not
 install dependencies, start background services, or add runtime application
