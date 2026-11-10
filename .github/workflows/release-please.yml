@@ -1,0 +1,69 @@
+name: Release PR
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please-main
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      actions: write
+    outputs:
+      release-created: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+      sha: ${{ steps.release.outputs.sha }}
+      release-id: ${{ steps.release.outputs.id }}
+    steps:
+      - name: Create or update the release PR; tag merged releases as drafts
+        id: release
+        uses: googleapis/release-please-action@v5
+        with:
+          target-branch: main
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - name: Explicitly dispatch CI on the generated release PR branch
+        if: steps.release.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_PR: ${{ steps.release.outputs.pr }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          number=$(python3 -c 'import json,os; print(int(json.loads(os.environ["RELEASE_PR"])["number"]))')
+          gh api "repos/$GH_REPO/pulls/$number" > pr.json
+          python3 - <<'PY' > dispatch.json
+          import json, os, re
+          pr = json.load(open("pr.json", encoding="utf-8"))
+          sha = pr["head"]["sha"]
+          if (pr["head"]["repo"]["full_name"] != os.environ["GH_REPO"]
+                  or pr["base"]["ref"] != "main" or pr["state"] != "open"
+                  or not re.fullmatch(r"[a-f0-9]{40}", sha)):
+              raise SystemExit("Unexpected release PR head; refusing to run it")
+          print(json.dumps({"ref": pr["head"]["ref"]}))
+          PY
+          # workflow_dispatch is allowed with GITHUB_TOKEN and attaches CI to
+          # the release PR's branch commit, unlike checking it out in this run.
+          gh api --method POST "repos/$GH_REPO/actions/workflows/windows-release.yml/dispatches" --input dispatch.json
+
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.release-created == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/windows-release.yml
+    with:
+      checkout-ref: ${{ needs.prepare.outputs.sha }}
+      release-tag: ${{ needs.prepare.outputs.tag }}
+      draft-release-id: ${{ needs.prepare.outputs.release-id }}

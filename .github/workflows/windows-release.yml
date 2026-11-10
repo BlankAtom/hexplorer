@@ -2,36 +2,70 @@ name: Windows build and release
 
 on:
   pull_request:
-    paths: ['Qt/**', '.github/workflows/windows-release.yml']
+    paths:
+      - 'Qt/**'
+      - '.github/workflows/windows-release.yml'
+      - '.github/workflows/release-please.yml'
+      - 'release-please-config.json'
+      - '.release-please-manifest.json'
   push:
     tags: ['v*']
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      checkout-ref:
+        description: Exact release commit to build
+        type: string
+        default: ''
+      release-tag:
+        description: Stable tag created by Release Please; empty for build-only calls
+        type: string
+        default: ''
+      draft-release-id:
+        description: Existing draft created by Release Please; never overwrite a published release
+        type: string
+        default: ''
 
 permissions:
   contents: read
 
 concurrency:
-  group: windows-release-${{ github.ref }}
+  group: windows-release-${{ inputs.release-tag || inputs.checkout-ref || github.ref }}
   cancel-in-progress: false
 
 jobs:
   build:
     runs-on: windows-2022
     timeout-minutes: 45
+    permissions:
+      contents: read
     env:
       QT_QUICK_BACKEND: software
     outputs:
       version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.source.outputs.sha }}
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+          ref: ${{ inputs.checkout-ref || github.sha }}
+          fetch-depth: 0
+      - name: Record exact source commit
+        id: source
+        shell: pwsh
+        run: |
+          $sha = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Could not resolve source commit.' }
+          "sha=$sha" >> $env:GITHUB_OUTPUT
       - name: Validate version and release tag
         id: version
         shell: pwsh
         env:
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release-tag }}
+          DRAFT_RELEASE_ID: ${{ inputs.draft-release-id }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
           $version = (Get-Content Qt\VERSION.txt -Raw).Trim()
           if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
@@ -39,6 +73,21 @@ jobs:
           }
           if ($env:REF_TYPE -eq 'tag' -and $env:REF_NAME -cne "v$version") {
             throw "Release tag must equal v$version."
+          }
+          $tag = $env:RELEASE_TAG
+          if (!$tag -and $env:REF_TYPE -eq 'tag') { $tag = $env:REF_NAME }
+          if ($tag) {
+            if ($tag -cne "v$version") { throw "Release tag $tag does not match VERSION v$version." }
+            $tagSha = git rev-parse --verify "refs/tags/$tag^{commit}"
+            if ($LASTEXITCODE -ne 0 -or $tagSha -ne $env:SOURCE_SHA) {
+              throw 'The release tag must point to the exact source commit being built.'
+            }
+          }
+          if ($env:RELEASE_TAG -and $env:DRAFT_RELEASE_ID -notmatch '^[1-9]\d*$') {
+            throw 'Reusable publication requires the draft release ID from Release Please.'
+          }
+          if (!$env:RELEASE_TAG -and $env:DRAFT_RELEASE_ID) {
+            throw 'A draft release ID requires an explicit release tag.'
           }
           "version=$version" >> $env:GITHUB_OUTPUT
       - name: Install Qt
@@ -120,7 +169,7 @@ jobs:
       - name: Upload Windows release assets
         uses: actions/upload-artifact@v6
         with:
-          name: windows-release
+          name: windows-release-${{ steps.source.outputs.sha }}
           if-no-files-found: error
           path: |
             Qt/dist/HExplorer-*.zip
@@ -131,7 +180,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: windows-diagnostics
+          name: windows-diagnostics-${{ steps.source.outputs.sha || github.job }}
           path: |
             Qt/build/Testing/Temporary/
             Qt/build/*smoke*.log
@@ -139,7 +188,10 @@ jobs:
             ${{ runner.temp }}/*smoke.log
 
   release:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      github.event_name == 'push' &&
+      (startsWith(github.ref, 'refs/tags/v') ||
+       (github.ref == 'refs/heads/main' && inputs.release-tag != '' && inputs.draft-release-id != ''))
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -147,29 +199,47 @@ jobs:
     steps:
       - uses: actions/download-artifact@v7
         with:
-          name: windows-release
+          name: windows-release-${{ needs.build.outputs.sha }}
           path: assets
       - name: Publish stable release after every asset is uploaded
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release-tag || github.ref_name }}
+          DRAFT_RELEASE_ID: ${{ inputs.draft-release-id }}
         shell: bash
         run: |
           set -euo pipefail
           cd assets
           sha256sum --check SHA256SUMS.txt
-          # A draft prevents the application seeing a half-published update.
-          # An existing tag release is not overwritten: review failed drafts manually.
-          gh release create "$RELEASE_TAG" --verify-tag --draft --title "HExplorer $RELEASE_TAG" --generate-notes ./*
-          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > release-assets.json
+          if [[ -n "$DRAFT_RELEASE_ID" ]]; then
+            release_id="$DRAFT_RELEASE_ID"
+            gh api "repos/$GH_REPO/releases/$DRAFT_RELEASE_ID" > ../draft-release.json
+            python3 - <<'PY'
+          import json, os
+          release = json.load(open("../draft-release.json", encoding="utf-8"))
+          if (str(release["id"]) != os.environ["DRAFT_RELEASE_ID"]
+                  or release["tag_name"] != os.environ["RELEASE_TAG"]
+                  or not release["draft"] or release["prerelease"] or release["assets"]):
+              raise SystemExit("Expected an empty stable draft from Release Please; no assets were changed")
+          PY
+            gh release upload "$RELEASE_TAG" ./*
+          else
+            # Manual tag pushes create their own draft; existing releases are never overwritten.
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "HExplorer $RELEASE_TAG" --generate-notes ./*
+            release_id=$(gh release view "$RELEASE_TAG" --json databaseId --jq '.databaseId')
+          fi
+          gh api "repos/$GH_REPO/releases/$release_id" > ../release-assets.json
           python3 - <<'PY'
           import json, pathlib
-          assets = json.loads(pathlib.Path("release-assets.json").read_text())["assets"]
+          release = json.loads(pathlib.Path("../release-assets.json").read_text())
+          if not release["draft"] or release["tag_name"] != __import__("os").environ["RELEASE_TAG"]:
+              raise SystemExit("Refusing to edit a published or mismatched release")
+          assets = release["assets"]
           import hashlib
           expected = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in pathlib.Path(".").glob("*-setup.exe")}
           found = {a["name"]: a.get("digest") for a in assets if a["name"] in expected}
           if not expected or any(found.get(name) != "sha256:" + digest for name, digest in expected.items()):
               raise SystemExit("GitHub installer digests do not match; leave the release draft for review")
           PY
-          gh release edit "$RELEASE_TAG" --draft=false --latest
+          gh api --method PATCH "repos/$GH_REPO/releases/$release_id" -F draft=false -f make_latest=true > /dev/null

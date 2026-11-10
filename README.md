@@ -31,11 +31,16 @@ From PowerShell at the workspace root:
 Pass `-QtRoot 'C:\Qt\6.8.3\msvc2022_64'` to use another SDK.
 See `Qt\README.md` for prerequisites, shortcuts, architecture and limitations.
 
-The application version is in `Qt\VERSION.txt`. Windows x64 release automation
-is defined in `.github\workflows\windows-release.yml`: a matching `v` tag builds
-and publishes the portable ZIP, per-user installer and SHA-256 checksums.
-Manual workflow runs only produce artifacts. In-app version/update controls
-are under **View > Settings > About and updates**; startup checks are opt-in.
+The application version is in `Qt\VERSION.txt`. On `main`, Release Please
+automatically maintains a version PR: `feat:` changes propose a minor release,
+`fix:` changes a patch. Merging that Release PR creates a matching `v` tag and
+calls the Windows build/release workflow directly, publishing the portable ZIP,
+per-user installer and SHA-256 checksums only after validation. Manual workflow
+runs only produce artifacts; manually pushed matching tags also support
+publication. Repository owners must allow Actions to create pull requests.
+See `Qt\README.md` for setup, conventional-commit conventions and recovery.
+In-app version/update controls are under **View > Settings > About and updates**;
+startup checks are opt-in.
 
 ## Solution skills
 
