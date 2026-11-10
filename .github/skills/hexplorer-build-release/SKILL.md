@@ -40,6 +40,7 @@ The existing target / CTest-name pairs are:
 | `operationtests` | `operations` | Copy/move/delete/ZIP and failure safeguards |
 | `platformtests` | `platform` | Native services, icons and preview contracts |
 | `HExplorer` | `qml_smoke` | UI loading, selection, drops, previews, layout changes |
+| `updatetests` | `updates` | Offline release validation, bounded downloads, cancellation and hash verification |
 
 After building, use the appropriate selector with Qt DLLs on PATH:
 
@@ -86,6 +87,32 @@ A package is not ready merely because the build-tree executable starts.
 Do not claim code signing, installer integration or complete license compliance:
 the current output is an unsigned portable development release. Keep NOTICE,
 miniz license and redistribution caveats in the package.
+
+## Versioned installers and GitHub Releases
+
+`Qt\VERSION.txt` is the single version source. Do not create a file named VERSION
+on Windows: it can shadow the C++ `<version>` header. CMake generates the C++
+header, RC metadata and package names. Keep stable `major.minor.patch` values.
+
+For a per-user Windows x64 installer, run `Qt\scripts\package-windows.ps1` after
+deployment. Supply `-SourceDirectory` for alternate deployments and
+`-ExpectedTag v<version>` to enforce release-tag matching. Use an existing
+Inno Setup compiler via `-Iscc`, or the signature-verifying
+`Qt\scripts\install-inno.ps1` when it is missing. Do not terminate an open EXE:
+`build.ps1 -DeployDirectory <new-directory> -Package` supports separate output.
+
+The workflow `.github\workflows\windows-release.yml` publishes only matching
+tag pushes; pull requests and manual dispatches are build-only. Keep build
+permissions read-only and grant release writes only to the release job.
+Publish all assets to a draft and verify GitHub SHA-256 digests before marking
+latest. Do not overwrite an existing Release to recover a failed run blindly.
+
+Updater policy is in `Qt\src\updates\UpdateController.*`: explicit downloads,
+opt-in startup checks, stable versions only, bounded HTTPS downloads with
+trusted redirects and exact asset/digest/size checks. Installer launch requires
+UI confirmation and no active file tasks. Updates from portable copies install
+a managed per-user copy, not an in-place portable overwrite. Checksums are not
+publisher signatures; never claim an unsigned build is signed.
 
 ## Relocation and running the app
 

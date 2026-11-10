@@ -4,6 +4,103 @@ A Windows 11-first, Qt 6 desktop file manager with Fluent WinUI 3 controls,
 independent file panes, a folder tree, local previews, and background file tasks.
 The UI is QML; filesystem policy and application state live in C++.
 
+## Versions, releases and updates
+
+The current application version is defined only in `VERSION.txt` (currently
+`0.2.0`). CMake generates the C++ version header, Windows EXE version resource
+and portable package version from it. Use a stable `major.minor.patch` value;
+each component must fit a Windows version field. The `VERSION.txt` extension
+is intentional: a file named `VERSION` shadows the C++ `<version>` header on
+case-insensitive Windows filesystems.
+
+Open **View > Settings > About and updates** for the installed version, release
+notes and **Check for updates**. Startup checking is opt-in and off by default.
+The application contacts the public GitHub Releases endpoint for
+`BlankAtom/hexplorer`; no token, file contents or local paths are sent.
+An unpublished/private repository, network failure or rate limit is reported
+explicitly. Development/preview tags are not offered as stable updates.
+
+The Windows x64 update method is **interactive per-user Inno Setup**, installed
+by default in `%LOCALAPPDATA%\Programs\HExplorer`. It requires no elevation and
+uses a stable AppId so later installers update the same installation. Settings,
+workspace state and color tags remain in the existing user's QSettings.
+Windows 10 1809 or newer is required; Windows 11 remains the primary target.
+
+Updates are never installed silently by the application. After checking, the
+user chooses Download; the C++ updater checks the HTTPS origin, exact asset
+name, declared byte count and GitHub's release-asset SHA-256 digest. The file is
+written atomically with bounded buffering and is rechecked before launch.
+Downloads can be cancelled. Installation requires another explicit confirmation,
+and file operations must be finished first. HExplorer then saves its workspace,
+starts the setup wizard and closes. Setup refuses to modify the installation
+while a new-version HExplorer instance holds its running mutex; it does not
+force-close processes. Restart from the installer's final page or Start menu.
+
+Portable copies are **not overwritten** by the updater: installing from a
+portable copy creates/updates the managed per-user installation. Users wanting
+to remain portable should download the release ZIP and extract it to a new
+directory, then switch to that copy. Existing pre-updater versions cannot
+self-update; install the first update-capable version manually once.
+
+Releases are currently **unsigned**. A SHA-256 match checks download integrity
+against GitHub metadata; it is not Authenticode publisher verification or
+protection against a compromised publisher account. Do not bypass SmartScreen
+or other Windows security warnings. Code signing and secure signing credentials
+must be configured separately before claiming signed distributions.
+
+### GitHub Actions
+
+`.github\workflows\windows-release.yml` builds Windows x64 on pull requests,
+manual dispatches and `v*` tag pushes. It runs CTest, deploys the runtime, creates
+the portable ZIP and per-user setup, exercises installation/reinstallation and
+uninstall, and uploads CI artifacts. Only a **tag push** publishes a Release.
+The tag must exactly match `v` plus `Qt\VERSION.txt` (for example `v0.2.0`).
+A manual dispatch is a build-only dry run, not a publication request.
+
+Release assets are:
+
+```text
+HExplorer-0.2.0-win64.zip
+HExplorer-0.2.0-windows-x64-setup.exe
+HExplorer-0.2.0-windows-x64-setup.exe.sha256
+SHA256SUMS.txt
+```
+
+The release job alone has `contents: write`; normal build jobs are read-only.
+It uploads all assets to a draft, compares GitHub's installer digest with the
+built file, and only then publishes as latest. If a release already exists or
+publishing fails, it does not overwrite existing assets: inspect the failed run
+and any draft before retrying. GitHub Actions must be enabled and permitted to
+create releases. No repository/account settings or public release were changed
+by adding this workflow.
+
+To prepare a release, update VERSION.txt, commit the intended changes, and push
+the matching version tag when authorized. Never put signing keys/tokens in
+source files; Actions uses its scoped `GITHUB_TOKEN` for publication.
+
+### Local installer packaging
+
+After generating the portable deployment:
+
+```powershell
+.\scripts\install-inno.ps1
+.\scripts\package-windows.ps1 -ExpectedTag v0.2.0
+```
+
+`install-inno.ps1` obtains a fixed Inno Setup 6.7.4 release and verifies its
+Authenticode publisher before running its compiler installer. Review Inno
+Setup's licensing requirements for your intended use. An existing compiler may
+instead be supplied with `-Iscc`. `package-windows.ps1` refuses a deployed EXE
+whose embedded version differs from VERSION.txt.
+
+If an older portable EXE is open, do not overwrite or terminate it. Deploy to
+a separate location and point the installer packager there:
+
+```powershell
+.\scripts\build.ps1 -Test -Package -DeployDirectory .\dist\HExplorer-0.2.0
+.\scripts\package-windows.ps1 -SourceDirectory .\dist\HExplorer-0.2.0 -ExpectedTag v0.2.0
+```
+
 ## Build
 
 Requirements:
@@ -143,6 +240,7 @@ blank-space rectangle selection are supported.
 | `src/core/AppController.*` | Application commands, active-pane coordination, settings and UI requests |
 | `src/core/NavigationSettings.*` | Persistent Quick Access visibility, expanded state and custom entries |
 | `src/core/TagStore.*` | Local multi-color metadata and rename/move path migration |
+| `src/updates/UpdateController.*` | Release parsing, opt-in checks, bounded downloads and verified installer handoff |
 | `src/operations/` | Background task queue, copy/move policies, conflict handling, cancellation and ZIP extraction |
 | `src/platform/` | Windows Shell operations, native drag and clipboard, icons, preview |
 | `qml/` | Fluent controls, presentation, keyboard and pointer interaction |
@@ -195,9 +293,10 @@ For model-only development, configure `-DHEXPLORER_CORE_ONLY=ON`. This avoids th
 native application and ZIP integration targets. Set it back to `OFF` for the
 full application.
 
-The portable ZIP is unsigned. Windows may display the usual reputation warning
-for an unsigned executable. No file associations, shell extensions or
-administrator privileges are installed automatically.
+The portable ZIP and installer are unsigned. Windows may display a reputation
+warning. No file associations, shell extensions or administrator privileges are
+installed automatically. The installer adds Start menu/uninstall entries and
+an optional desktop shortcut, without deleting QSettings on uninstall.
 
 ## Third-party licensing
 

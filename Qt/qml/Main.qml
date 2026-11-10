@@ -97,7 +97,8 @@ ApplicationWindow {
                 }
             }
             ToolButton {
-                text: qsTr("View")
+                text: appController.updates.status === "available" || appController.updates.status === "ready"
+                    ? qsTr("View (update available)") : qsTr("View")
                 onClicked: viewMenu.popup()
                 Menu {
                     id: viewMenu
@@ -105,7 +106,7 @@ ApplicationWindow {
                     MenuItem { text: qsTr("Right sidebar"); checkable: true; checked: appController.rightVisible; onTriggered: appController.rightVisible = checked }
                     MenuItem { text: qsTr("Swap sidebars"); checkable: true; checked: appController.swapSides; onTriggered: appController.swapSides = checked }
                     MenuSeparator {}
-                    MenuItem { text: qsTr("Navigation settings"); onTriggered: navigationDialog.open() }
+                    MenuItem { text: qsTr("Settings"); onTriggered: navigationDialog.open() }
                     MenuSeparator {}
                     MenuItem { text: qsTr("Follow system theme"); checkable: true; checked: appController.theme === 0; onTriggered: appController.theme = 0 }
                     MenuItem { text: qsTr("Light"); checkable: true; checked: appController.theme === 1; onTriggered: appController.theme = 1 }
@@ -208,7 +209,31 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+4"; onActivated: window.workspace.preset(4) }
 
     TaskCenter { id: taskCenter; objectName: "taskCenter"; parent: Overlay.overlay; x: Math.max(8, window.width - width - 16); y: 64 }
-    NavigationDialog { id: navigationDialog; objectName: "navigationDialog"; anchors.centerIn: parent }
+    NavigationDialog {
+        id: navigationDialog
+        objectName: "navigationDialog"
+        anchors.centerIn: parent
+        onInstallRequested: updateInstallDialog.open()
+    }
+    Dialog {
+        id: updateInstallDialog
+        title: qsTr("Install HExplorer %1?").arg(appController.updates.latestVersion)
+        anchors.centerIn: parent
+        width: 480
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        Label {
+            width: parent.width
+            wrapMode: Text.Wrap
+            text: qsTr("HExplorer will save your workspace and close, then the Windows setup wizard will guide the update. File operations must finish first. A portable copy remains unchanged; setup creates or updates the current-user installed copy.")
+        }
+        onAccepted: {
+            if (appController.installUpdate()) {
+                window.allowExit = true
+                window.close()
+            }
+        }
+    }
     Connections {
         target: appController
         function onNotification(message) { window.notice = message; noticeDialog.open() }

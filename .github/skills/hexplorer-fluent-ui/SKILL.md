@@ -19,7 +19,8 @@ Paths are workspace-root relative; the application source root is `Qt`.
 | `Qt\qml\FilePane.qml` | Address/filter controls, GridView delegates, selection, drops, shortcuts |
 | `Qt\qml\Sidebar.qml` | Shared tree/preview component selected by `previewMode` |
 | `Qt\qml\TaskCenter.qml` | Non-modal task popup bound to the C++ task model |
-| `Qt\qml\NavigationDialog.qml` | Quick Access settings, visibility and named custom folders |
+| `Qt\qml\NavigationDialog.qml` | Settings tabs, Quick Access visibility and named custom folders |
+| `Qt\qml\UpdateSettings.qml` | Version display, opt-in checks and download/install controls |
 | `Qt\qml\TagMenu.qml` | Multi-selection color-tag menu with checked/mixed states |
 | `Qt\src\main.cpp` | FluentWinUI3 style, image provider and GUI smoke-test scenario |
 | `Qt\src\core\Workspace.*` | Layout geometry and split ratios |

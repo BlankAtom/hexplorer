@@ -31,6 +31,12 @@ From PowerShell at the workspace root:
 Pass `-QtRoot 'C:\Qt\6.8.3\msvc2022_64'` to use another SDK.
 See `Qt\README.md` for prerequisites, shortcuts, architecture and limitations.
 
+The application version is in `Qt\VERSION.txt`. Windows x64 release automation
+is defined in `.github\workflows\windows-release.yml`: a matching `v` tag builds
+and publishes the portable ZIP, per-user installer and SHA-256 checksums.
+Manual workflow runs only produce artifacts. In-app version/update controls
+are under **View > Settings > About and updates**; startup checks are opt-in.
+
 ## Solution skills
 
 Each skill is a directory under `.github\skills` with a `SKILL.md` entry point:

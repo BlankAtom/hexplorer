@@ -82,6 +82,15 @@ AppController::~AppController()
 
 bool AppController::busy() const { return m_tasks.busy() || m_mutations > 0; }
 
+bool AppController::installUpdate()
+{
+    if (busy()) {
+        emit notification(tr("Finish or cancel all file operations before installing an update."));
+        return false;
+    }
+    saveSession();
+    return m_updates.launchInstaller();
+}
 
 QVariantList AppController::selectionTags() const
 {

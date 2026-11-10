@@ -1,8 +1,8 @@
 #include <windows.h>
 
 1 VERSIONINFO
-FILEVERSION 0,1,0,0
-PRODUCTVERSION 0,1,0,0
+FILEVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+PRODUCTVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
 FILETYPE VFT_APP
 BEGIN
     BLOCK "StringFileInfo"
@@ -11,7 +11,8 @@ BEGIN
         BEGIN
             VALUE "FileDescription", "HExplorer desktop file manager\0"
             VALUE "ProductName", "HExplorer\0"
-            VALUE "ProductVersion", "0.1.0\0"
+            VALUE "ProductVersion", "@PROJECT_VERSION@\0"
+            VALUE "FileVersion", "@PROJECT_VERSION@\0"
             VALUE "OriginalFilename", "HExplorer.exe\0"
         END
     END

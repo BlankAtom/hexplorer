@@ -230,6 +230,26 @@ private slots:
         QCOMPARE(errors.size(), 2);
         QVERIFY(app.workspace()->activePane()->tagView());
     }
+    void updateInstallationNeverInterruptsFileTasks()
+    {
+        QTemporaryDir directory;
+        QVERIFY(QDir(directory.path()).mkdir("Target"));
+        writeFile(directory.filePath("File.txt"));
+        writeFile(directory.filePath("Target\\File.txt"));
+        AppController app;
+        QSignalSpy notifications(&app, &AppController::notification);
+        const auto id = app.tasks()->submit("copy", {QUrl::fromLocalFile(directory.filePath("File.txt"))},
+                                            QUrl::fromLocalFile(directory.filePath("Target")));
+        QVERIFY(app.busy());
+        QVERIFY(!app.installUpdate());
+        QCOMPARE(notifications.size(), 1);
+        QVERIFY(notifications.first().first().toString().contains("file operations"));
+        QCOMPARE(app.updates()->status(), QString("idle"));
+        app.tasks()->cancel(id);
+        QTRY_VERIFY(!app.busy());
+        QVERIFY(!app.installUpdate()); // no verified package
+        QCOMPARE(app.updates()->status(), QString("error"));
+    }
     void corruptTagMetadataIsNotOverwritten()
     {
         QSettings settings;

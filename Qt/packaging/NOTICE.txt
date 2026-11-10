@@ -17,5 +17,7 @@ project. Before redistributing outside this environment, the distributor must
 provide all source/notices/relinking rights required by their Qt license and
 its third-party components, or obtain a suitable commercial license.
 
-The portable package does not install a shell extension or register file
-associations. It is an unsigned development release.
+The portable package and optional current-user Windows installer do not install
+a shell extension or register file associations. They are unsigned releases.
+The installer is built with Inno Setup; compiler licensing terms are available
+at https://jrsoftware.org/isinfo.php.

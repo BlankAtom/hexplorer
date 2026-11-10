@@ -1,0 +1,4 @@
+#pragma once
+
+#define HEXPLORER_VERSION "@PROJECT_VERSION@"
+#define HEXPLORER_UPDATE_REPOSITORY "BlankAtom/hexplorer"

@@ -1,5 +1,6 @@
 #include "AppController.h"
 #include "ShellIconProvider.h"
+#include "Version.h"
 #include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -22,6 +23,12 @@
 #include <QElapsedTimer>
 #include <cstdio>
 #include <cstdlib>
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 static QQuickItem *findVisualItem(QQuickItem *root, const QString &name)
 {
@@ -38,17 +45,34 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     QCoreApplication::setOrganizationName("HExplorer");
     QCoreApplication::setApplicationName("HExplorer");
-    QCoreApplication::setApplicationVersion("0.1.0");
+    QCoreApplication::setApplicationVersion(HEXPLORER_VERSION);
     app.setWindowIcon(QIcon(":/assets/hexplorer.svg"));
     QCommandLineParser parser;
     parser.setApplicationDescription("Native multi-pane desktop file manager");
     parser.addHelpOption();
-    parser.addVersionOption();
+    parser.addOption({{"v", "version"}, "Display the application version without opening a GUI."});
     parser.addOption({"smoke-test", "Load the interface with isolated settings and exit."});
     parser.addOption({"smoke-screenshot", "Save a rendered image during the smoke test.", "path"});
     parser.addOption({"smoke-log", "Write smoke-test diagnostics to a file.", "path"});
     parser.addPositionalArgument("folder", "Initial folder to open.");
     parser.process(app);
+    if (parser.isSet("version")) {
+        std::fprintf(stdout, "HExplorer %s\n", HEXPLORER_VERSION);
+        return 0;
+    }
+#ifdef Q_OS_WIN
+    // Inno Setup checks this shared mutex before changing installed files.
+    // Multiple application instances are allowed; each retains a handle.
+    const auto closeMutex = [](void *handle) { if (handle) CloseHandle(handle); };
+    std::unique_ptr<void, decltype(closeMutex)> runningMutex(
+        parser.isSet("smoke-test") ? nullptr
+                                 : CreateMutexW(nullptr, FALSE, L"Local\\HExplorer.Running.61B21CF7-348E-47DF-9D69-744A8F5DA8B7"),
+        closeMutex);
+    if (!parser.isSet("smoke-test") && !runningMutex) {
+        qCritical("Cannot register the application installation lock (Windows error %lu).", GetLastError());
+        return 3;
+    }
+#endif
     std::unique_ptr<QTemporaryDir> smokeDirectory;
     if (parser.isSet("smoke-test")) {
         static QString smokeLogPath;
@@ -92,11 +116,14 @@ int main(int argc, char *argv[])
     qmlRegisterUncreatableType<Workspace>("HExplorer.Core", 1, 0, "Workspace", "Owned by the app");
     qmlRegisterUncreatableType<NavigationSettings>("HExplorer.Core", 1, 0, "NavigationSettings", "Owned by the app");
     qmlRegisterUncreatableType<TagStore>("HExplorer.Core", 1, 0, "TagStore", "Owned by the app");
+    qmlRegisterUncreatableType<UpdateController>("HExplorer.Core", 1, 0, "UpdateController", "Owned by the app");
     qmlRegisterUncreatableType<TaskManager>("HExplorer.Core", 1, 0, "TaskManager", "Owned by the app");
     qmlRegisterUncreatableType<NativeServices>("HExplorer.Core", 1, 0, "NativeServices", "Owned by the app");
     qmlRegisterUncreatableType<PreviewController>("HExplorer.Core", 1, 0, "PreviewController", "Owned by the app");
     qmlRegisterUncreatableType<QFileSystemModel>("HExplorer.Core", 1, 0, "FileSystemModel", "Owned by the app");
     AppController controller;
+    if (!parser.isSet("smoke-test") && controller.updates()->autoCheck())
+        QTimer::singleShot(2000, controller.updates(), &UpdateController::check);
     if (smokeDirectory) {
         for (auto *pane : controller.workspace()->panes())
             pane->navigate(QUrl::fromLocalFile(smokeDirectory->path()));
@@ -214,7 +241,14 @@ int main(int argc, char *argv[])
                 if (auto *dialog = engine.rootObjects().first()->findChild<QObject*>("navigationDialog"))
                     QMetaObject::invokeMethod(dialog, "open");
                 else qmlWarning = true;
+                auto *tabs = engine.rootObjects().first()->findChild<QObject*>("settingsTabs");
+                if (!tabs || !tabs->setProperty("currentIndex", 1)) qmlWarning = true;
+                if (controller.updates()->currentVersion() != QStringLiteral(HEXPLORER_VERSION)
+                    || controller.updates()->busy()) qmlWarning = true;
             } else if (stage == 9) {
+                if (parser.isSet("smoke-screenshot")
+                    && !window->grabWindow().save(parser.value("smoke-screenshot") + ".updates.png"))
+                    qmlWarning = true;
                 if (auto *dialog = engine.rootObjects().first()->findChild<QObject*>("navigationDialog"))
                     QMetaObject::invokeMethod(dialog, "close");
                 controller.navigation()->setVisible(true);

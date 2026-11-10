@@ -37,9 +37,9 @@ Rectangle {
                 visible: !root.previewMode
                 text: "\uE713"
                 font.family: "Segoe Fluent Icons"
-                Accessible.name: qsTr("Navigation settings")
+                Accessible.name: qsTr("Settings")
                 ToolTip.visible: hovered
-                ToolTip.text: qsTr("Navigation settings")
+                ToolTip.text: qsTr("Settings")
                 onClicked: root.settingsRequested()
             }
             ToolButton {

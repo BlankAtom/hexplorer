@@ -8,6 +8,7 @@
 #include <QSettings>
 #include <QThreadPool>
 #include "NavigationSettings.h"
+#include "UpdateController.h"
 
 class AppController : public QObject {
     Q_OBJECT
@@ -18,6 +19,7 @@ class AppController : public QObject {
     Q_PROPERTY(QFileSystemModel* tree READ tree CONSTANT)
     Q_PROPERTY(NavigationSettings* navigation READ navigation CONSTANT)
     Q_PROPERTY(TagStore* tags READ tags CONSTANT)
+    Q_PROPERTY(UpdateController* updates READ updates CONSTANT)
     Q_PROPERTY(QVariantList selectionTags READ selectionTags NOTIFY selectionTagsChanged)
     Q_PROPERTY(bool leftVisible READ leftVisible WRITE setLeftVisible NOTIFY settingsChanged)
     Q_PROPERTY(bool rightVisible READ rightVisible WRITE setRightVisible NOTIFY settingsChanged)
@@ -36,6 +38,8 @@ public:
     QFileSystemModel *tree() { return &m_tree; }
     NavigationSettings *navigation() { return &m_navigation; }
     TagStore *tags() { return &m_tags; }
+    UpdateController *updates() { return &m_updates; }
+    Q_INVOKABLE bool installUpdate();
     QVariantList selectionTags() const;
     Q_INVOKABLE void tagSelection(QString tag, bool enabled);
     Q_INVOKABLE void clearSelectionTags();
@@ -87,6 +91,7 @@ private:
     void updatePreview();
     void runMutation(QString source, QString destination, bool createDirectory);
     TagStore m_tags;
+    UpdateController m_updates;
     NavigationSettings m_navigation;
     Workspace m_workspace;
     TaskManager m_tasks;

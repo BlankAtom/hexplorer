@@ -1,6 +1,7 @@
 param(
     [string]$QtRoot = (Join-Path $PSScriptRoot '..\..\.tools\Qt\6.8.3\msvc2022_64'),
     [ValidateSet('Debug', 'Release')][string]$Configuration = 'Release',
+    [string]$DeployDirectory = (Join-Path $PSScriptRoot '..\dist\HExplorer'),
     [switch]$Test,
     [switch]$Package
 )
@@ -33,7 +34,8 @@ if ($Test) {
 }
 if ($Package) {
     $cpack = Join-Path (Split-Path $cmake) 'cpack.exe'
-    $commands += "`"$cmake`" --install `"$build`" --prefix `"$root\dist\HExplorer`""
+    $deploy = [IO.Path]::GetFullPath($DeployDirectory)
+    $commands += "`"$cmake`" --install `"$build`" --prefix `"$deploy`""
     $commands += "`"$cpack`" --config `"$build\CPackConfig.cmake`" -B `"$root\dist`""
 }
 & $env:ComSpec /d /c ($commands -join ' && ')

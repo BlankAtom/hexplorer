@@ -28,6 +28,7 @@ Read the relevant headers and their implementations before changing APIs:
 | `Qt\src\core\NavigationSettings.*` | Persistent Quick Access visibility, expanded state and custom folders |
 | `Qt\src\core\TagStore.*` | Local multi-color metadata, global tag queries and path relocation |
 | `Qt\src\main.cpp` | Type registration, context object, image provider and QML entry point |
+| `Qt\src\updates\UpdateController.*` | Release checks, verified downloads and Windows installer handoff |
 
 ## Preserve the boundaries
 
@@ -41,6 +42,9 @@ Read the relevant headers and their implementations before changing APIs:
   registered as uncreatable; QML references objects owned by C++.
 - Search existing controllers for a command before adding parallel state or a
   second implementation. Do not duplicate selected files in a JavaScript array.
+- Version data comes from `Qt\VERSION.txt` through generated headers/resources.
+  Update networking and validation remain in C++; installer launch is guarded
+  by AppController's file-task state and an explicit QML confirmation.
 
 ## Implementation workflow
 
