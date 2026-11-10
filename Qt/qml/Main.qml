@@ -54,6 +54,12 @@ ApplicationWindow {
             ToolButton { text: qsTr("Cut"); enabled: window.activePane && window.activePane.files.selectionCount > 0; onClicked: appController.copy(true) }
             ToolButton { text: qsTr("Copy"); enabled: window.activePane && window.activePane.files.selectionCount > 0; onClicked: appController.copy(false) }
             ToolButton { text: qsTr("Paste"); onClicked: appController.paste() }
+            ToolButton {
+                text: qsTr("Tags")
+                enabled: window.activePane && window.activePane.files.selectionCount > 0
+                onClicked: toolbarTags.popup()
+                TagMenu { id: toolbarTags; objectName: "toolbarTagMenu" }
+            }
             ToolButton { visible: window.width >= 1200; text: qsTr("Rename"); enabled: window.activePane && window.activePane.files.selectionCount === 1; onClicked: appController.requestRename() }
             ToolButton { visible: window.width >= 1200; text: qsTr("Delete"); enabled: window.activePane && window.activePane.files.selectionCount > 0; onClicked: appController.requestDelete() }
             ToolButton { visible: window.width >= 1200; text: qsTr("Extract ZIP"); enabled: window.activePane && window.activePane.files.selectionCount > 0; onClicked: appController.extract() }
@@ -93,6 +99,8 @@ ApplicationWindow {
                     MenuItem { text: qsTr("Right sidebar"); checkable: true; checked: appController.rightVisible; onTriggered: appController.rightVisible = checked }
                     MenuItem { text: qsTr("Swap sidebars"); checkable: true; checked: appController.swapSides; onTriggered: appController.swapSides = checked }
                     MenuSeparator {}
+                    MenuItem { text: qsTr("Navigation settings"); onTriggered: navigationDialog.open() }
+                    MenuSeparator {}
                     MenuItem { text: qsTr("Follow system theme"); checkable: true; checked: appController.theme === 0; onTriggered: appController.theme = 0 }
                     MenuItem { text: qsTr("Light"); checkable: true; checked: appController.theme === 1; onTriggered: appController.theme = 1 }
                     MenuItem { text: qsTr("Dark"); checkable: true; checked: appController.theme === 2; onTriggered: appController.theme = 2 }
@@ -113,6 +121,7 @@ ApplicationWindow {
         Sidebar {
             visible: appController.leftVisible
             previewMode: appController.swapSides
+            onSettingsRequested: navigationDialog.open()
             SplitView.preferredWidth: appController.leftWidth
             SplitView.minimumWidth: 160
             SplitView.maximumWidth: 500
@@ -165,6 +174,7 @@ ApplicationWindow {
         Sidebar {
             visible: appController.rightVisible
             previewMode: !appController.swapSides
+            onSettingsRequested: navigationDialog.open()
             SplitView.preferredWidth: appController.rightWidth
             SplitView.minimumWidth: 200
             SplitView.maximumWidth: 600
@@ -192,6 +202,7 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+4"; onActivated: window.workspace.preset(4) }
 
     TaskCenter { id: taskCenter; objectName: "taskCenter"; parent: Overlay.overlay; x: Math.max(8, window.width - width - 16); y: 64 }
+    NavigationDialog { id: navigationDialog; objectName: "navigationDialog"; anchors.centerIn: parent }
     Connections {
         target: appController
         function onNotification(message) { window.notice = message; noticeDialog.open() }

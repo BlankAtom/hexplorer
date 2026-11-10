@@ -53,6 +53,45 @@ light, or dark theme. The folder tree loads on demand. The preview sidebar
 supports local images, bounded text, and metadata; **Pin** keeps a preview while
 browsing. Files are never uploaded to a preview service.
 
+### Quick Access and color tags
+
+Click the Quick Access heading to collapse or expand its entries. The last
+state is saved immediately and restored on the next launch. Open the sidebar's
+gear button or **View > Navigation settings** to hide/show the entire section,
+remove individual entries, add a named local/network folder, or restore the
+default entries. Hiding the section does not erase its custom entries; removing
+an entry does not delete the folder.
+
+Select one or more files/folders and use **Tags** in the command bar or
+**Color tags** in the file context menu. Each item can have multiple colors.
+Checked colors apply to every selected item; a "some selected items" label
+indicates mixed tagging. Choose a color to apply/remove it, or remove all tags.
+Colored dots appear in both list and grid views.
+
+Click a sidebar color to show all known items with that tag across directories
+in the active pane. The address uses `hexplorer-tag:/red` (or another color);
+Back/Forward works normally. The name filter and sorting also work in this
+view. List mode shows each item's original path to distinguish matching names.
+Double-click a tagged folder to browse it, or use **Show in Explorer** to reveal
+one selected item. Paste, new-folder creation and extraction require a real
+destination folder; dropping onto a folder result is still supported.
+
+Tags are local HExplorer metadata stored with its QSettings, not file contents,
+NTFS alternate streams or macOS Finder metadata. Successful in-app rename/move
+operations migrate tags, including directory descendants, keep-both names and
+the completed portions of partially successful/cancelled moves. Moving into an
+existing directory preserves its own folder tags and combines source folder
+tags; replacing a file follows the moved source's tags. Copying does not
+duplicate source tags.
+
+Operations performed outside HExplorer, including rename/move commands inside
+the optional Windows context menu, are not tracked. Missing/offline tagged
+items are omitted with an explicit notice and retain their metadata; reconnect
+and refresh to show them again. Since these records are path-based, externally
+replacing a file at the same path can inherit its old tag. The tag view is not a
+recursive disk search or a live system-wide index; use Refresh after external
+changes. No file is uploaded or modified just to assign a color.
+
 Drag files between panes or between HExplorer and Windows Explorer. Folder rows
 are drop targets; blank space targets the current pane's directory. Same-volume
 drops prefer moving, cross-volume drops prefer copying. Hold Ctrl to copy or
@@ -98,6 +137,8 @@ blank-space rectangle selection are supported.
 | `src/core/PaneController.*` | Per-pane navigation, history and view state |
 | `src/core/Workspace.*` | Binary split tree, normalized geometry and layout persistence |
 | `src/core/AppController.*` | Application commands, active-pane coordination, settings and UI requests |
+| `src/core/NavigationSettings.*` | Persistent Quick Access visibility, expanded state and custom entries |
+| `src/core/TagStore.*` | Local multi-color metadata and rename/move path migration |
 | `src/operations/` | Background task queue, copy/move policies, conflict handling, cancellation and ZIP extraction |
 | `src/platform/` | Windows Shell operations, native drag and clipboard, icons, preview |
 | `qml/` | Fluent controls, presentation, keyboard and pointer interaction |

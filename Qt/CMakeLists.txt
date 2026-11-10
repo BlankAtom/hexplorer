@@ -16,6 +16,8 @@ endif()
 include(CTest)
 option(HEXPLORER_CORE_ONLY "Build only the filesystem and workspace model tests" OFF)
 qt_add_library(hexplorer_core STATIC
+    src/core/TagStore.cpp src/core/TagStore.h
+    src/core/NavigationSettings.cpp src/core/NavigationSettings.h
     src/core/DirectoryModel.cpp src/core/DirectoryModel.h
     src/core/PaneController.cpp src/core/PaneController.h
     src/core/Workspace.cpp src/core/Workspace.h
@@ -47,6 +49,8 @@ qt_add_qml_module(HExplorer
         qml/FilePane.qml
         qml/Sidebar.qml
         qml/TaskCenter.qml
+        qml/TagMenu.qml
+        qml/NavigationDialog.qml
 )
 target_link_libraries(HExplorer PRIVATE hexplorer_app Qt6::QuickControls2)
 if(WIN32)

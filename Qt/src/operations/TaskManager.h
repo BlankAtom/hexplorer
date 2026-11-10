@@ -58,6 +58,8 @@ signals:
     void taskFinished();
     // Original, normalized source URLs; never emitted for partial/cancelled moves.
     void successfulMove(QString taskId, QVariantList urls);
+    // Actual destinations, including keep-both names and moves in partial tasks.
+    void pathRelocated(QString source, QString destination);
 
 private:
     TaskListModel *m_model;

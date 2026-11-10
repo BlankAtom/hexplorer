@@ -83,11 +83,25 @@ FocusScope {
         TextField {
             id: filter
             Layout.fillWidth: true
-            placeholderText: qsTr("Filter this folder")
+            placeholderText: root.pane.tagView ? qsTr("Filter tagged items") : qsTr("Filter this folder")
             text: root.pane.query
             Accessible.name: placeholderText
             onTextEdited: root.pane.query = text
             onActiveFocusChanged: if (activeFocus) root.workspace.activate(root.pane)
+        }
+        Label {
+            visible: root.pane.tagView
+            text: qsTr("%1 — across all tagged folders").arg(root.pane.title)
+            Layout.fillWidth: true
+            elide: Text.ElideRight
+            font.bold: true
+        }
+        Label {
+            visible: root.pane.error.length > 0 && root.pane.files.count > 0
+            text: root.pane.error
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            textFormat: Text.PlainText
         }
         RowLayout {
             visible: !root.pane.grid
@@ -108,7 +122,7 @@ FocusScope {
                 anchors.fill: parent
                 model: root.pane.files
                 cellWidth: root.pane.grid ? Math.max(96, width / Math.max(1, Math.floor(width / 112))) : width
-                cellHeight: root.pane.grid ? 112 : 38
+                cellHeight: root.pane.grid ? 112 : root.pane.tagView ? 56 : 38
                 boundsBehavior: Flickable.StopAtBounds
                 keyNavigationEnabled: false
                 reuseItems: true
@@ -143,6 +157,8 @@ FocusScope {
                     required property string modifiedText
                     required property bool isDirectory
                     required property bool selected
+                    required property var tagColors
+                    required property string filePath
                     objectName: "file-item-" + entry.fileName
                     width: fileView.cellWidth
                     height: fileView.cellHeight
@@ -163,6 +179,7 @@ FocusScope {
                     }
                     Image {
                         id: fileIcon
+                        objectName: "file-icon"
                         source: entry.iconUrl
                         asynchronous: true
                         sourceSize: Qt.size(root.pane.grid ? 48 : 24, root.pane.grid ? 48 : 24)
@@ -174,14 +191,35 @@ FocusScope {
                     }
                     Label {
                         x: root.pane.grid ? 4 : 44
-                        y: root.pane.grid ? 64 : (parent.height - height) / 2
-                        width: root.pane.grid ? parent.width - 8 : parent.width - 52 - (root.width > 350 ? 80 : 0) - (root.width > 550 ? 150 : 0)
+                        y: root.pane.grid ? 64 : root.pane.tagView ? 5 : (parent.height - height) / 2
+                        width: root.pane.grid ? parent.width - 8 : parent.width - 112 - (root.width > 350 ? 80 : 0) - (root.width > 550 ? 150 : 0)
                         text: entry.fileName
                         textFormat: Text.PlainText
                         elide: Text.ElideRight
                         maximumLineCount: root.pane.grid ? 2 : 1
                         wrapMode: root.pane.grid ? Text.Wrap : Text.NoWrap
                         horizontalAlignment: root.pane.grid ? Text.AlignHCenter : Text.AlignLeft
+                    }
+                    Label {
+                        visible: root.pane.tagView && !root.pane.grid
+                        x: 44; y: 30; width: parent.width - 54
+                        text: entry.filePath
+                        textFormat: Text.PlainText
+                        elide: Text.ElideMiddle
+                        font.pixelSize: 10
+                        opacity: 0.6
+                    }
+                    Row {
+                        x: root.pane.grid ? (parent.width - width) / 2 : parent.width - 66 - (root.width > 350 ? 80 : 0) - (root.width > 550 ? 150 : 0)
+                        y: root.pane.grid ? 56 : (parent.height - height) / 2
+                        spacing: 2
+                        Repeater {
+                            model: entry.tagColors
+                            delegate: Rectangle {
+                                required property var modelData
+                                width: 7; height: 7; radius: 3.5; color: modelData
+                            }
+                        }
                     }
                     Label {
                         visible: !root.pane.grid && root.width > 350
@@ -222,8 +260,8 @@ FocusScope {
                         onClicked: function(mouse) {
                             if (root.draggingFiles) return
                             if (mouse.button === Qt.RightButton) {
-                                const point = mapToGlobal(mouse.x, mouse.y)
-                                appController.contextMenu(point.x, point.y)
+                                const point = mapToItem(root, mouse.x, mouse.y)
+                                fileMenu.popup(root, point.x, point.y)
                             } else if (!(mouse.modifiers & (Qt.ControlModifier | Qt.ShiftModifier))) {
                                 root.pane.files.select(entry.index)
                             }
@@ -231,7 +269,7 @@ FocusScope {
                         onDoubleClicked: function(mouse) { if (mouse.button === Qt.LeftButton) root.pane.activateEntry(entry.index) }
                         ToolTip.visible: containsMouse && !pressed
                         ToolTip.delay: 800
-                        ToolTip.text: entry.fileName
+                        ToolTip.text: root.pane.tagView ? entry.filePath : entry.fileName
                     }
                     DropArea {
                         id: folderDrop
@@ -290,8 +328,10 @@ FocusScope {
                 onWheel: function(wheel) { wheel.accepted = false }
                 onClicked: function(mouse) {
                     if (mouse.button === Qt.RightButton) {
-                        const point = mapToGlobal(mouse.x, mouse.y)
-                        appController.contextMenu(point.x, point.y)
+                        if (!root.pane.tagView) {
+                            const point = mapToGlobal(mouse.x, mouse.y)
+                            appController.contextMenu(point.x, point.y)
+                        }
                     }
                 }
                 Rectangle {
@@ -321,11 +361,31 @@ FocusScope {
                 id: paneDrop
                 anchors.fill: parent
                 z: -2
+                enabled: !root.pane.tagView
                 property int action: Qt.IgnoreAction
                 onEntered: function(drag) {
                     drag.accepted = drag.hasUrls
                     action = appController.dropAction(drag.urls, root.pane.url, appController.dragModifiers(), drag.supportedActions)
                     drag.action = action
+                }
+                Menu {
+                    id: fileMenu
+                    MenuItem { text: qsTr("Open"); onTriggered: root.pane.activateEntry(fileView.currentIndex) }
+                    TagMenu {}
+                    MenuItem { text: qsTr("Rename"); onTriggered: appController.requestRename() }
+                    MenuItem {
+                        text: qsTr("Show in Explorer")
+                        enabled: root.pane.files.selectionCount === 1
+                        onTriggered: appController.native.reveal(root.pane.files.selectedUrls[0])
+                    }
+                    MenuSeparator {}
+                    MenuItem {
+                        text: qsTr("Windows context menu")
+                        onTriggered: {
+                            const point = root.mapToGlobal(fileMenu.x, fileMenu.y)
+                            appController.contextMenu(point.x, point.y)
+                        }
+                    }
                 }
                 onPositionChanged: function(drag) {
                     action = appController.dropAction(drag.urls, root.pane.url, appController.dragModifiers(), drag.supportedActions)

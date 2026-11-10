@@ -40,6 +40,7 @@ public:
     Q_INVOKABLE void closePane(PaneController *pane);
     Q_INVOKABLE void resizeSplit(LayoutNode *node, double x, double y);
     QJsonObject save() const;
+    void setTagStore(TagStore *store);
     void restore(const QJsonObject &object);
 signals:
     void structureChanged();
@@ -60,4 +61,5 @@ private:
     QList<PaneController*> m_panes;
     LayoutNode *m_root = nullptr;
     PaneController *m_active = nullptr;
+    TagStore *m_tags = nullptr;
 };

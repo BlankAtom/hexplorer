@@ -4,9 +4,16 @@
 
 Workspace::Workspace(QObject *parent) : QObject(parent) {}
 
+void Workspace::setTagStore(TagStore *store)
+{
+    m_tags = store;
+    for (auto *pane : m_panes) pane->setTagStore(store);
+}
+
 PaneController *Workspace::createPane()
 {
     auto *pane = new PaneController(this);
+    pane->setTagStore(m_tags);
     m_panes.append(pane);
     connect(pane, &PaneController::openFile, this, &Workspace::openFile);
     connect(pane, &PaneController::errorOccurred, this, &Workspace::errorOccurred);

@@ -15,20 +15,21 @@ PaneController::PaneController(QObject *parent)
     connect(&m_proxy, &DirectoryProxy::selectionChanged, this, &PaneController::selectionChanged);
 }
 
-QString PaneController::path() const { return QDir::toNativeSeparators(m_url.toLocalFile()); }
+QString PaneController::path() const { return tagView() ? m_url.toString() : QDir::toNativeSeparators(m_url.toLocalFile()); }
 QString PaneController::title() const
 {
+    if (tagView()) return tr("Tag: %1").arg(TagStore::tagName(tagId()));
     const auto name = QFileInfo(m_url.toLocalFile()).fileName();
     return name.isEmpty() ? path() : name;
 }
 
 void PaneController::navigate(QUrl url)
 {
-    if (!url.isLocalFile() || url.toLocalFile().isEmpty()) {
+    if (!validLocation(url)) {
         emit errorOccurred(tr("Only local folders and network shares are supported."));
         return;
     }
-    url = QUrl::fromLocalFile(QDir::cleanPath(url.toLocalFile()));
+    if (url.isLocalFile()) url = QUrl::fromLocalFile(QDir::cleanPath(url.toLocalFile()));
     if (url == m_url) {
         refresh();
         return;
@@ -50,7 +51,7 @@ void PaneController::navigateText(QString text)
     if (text == "~")
         text = QDir::homePath();
     const QUrl candidate(text);
-    if (candidate.isLocalFile()) {
+    if (candidate.isLocalFile() || candidate.scheme() == "hexplorer-tag") {
         navigate(candidate);
         return;
     }
@@ -76,11 +77,38 @@ void PaneController::back() { if (canBack()) visit(m_history.at(--m_historyIndex
 void PaneController::forward() { if (canForward()) visit(m_history.at(++m_historyIndex)); }
 void PaneController::up()
 {
+    if (tagView()) { back(); return; }
     QDir dir(m_url.toLocalFile());
     if (dir.cdUp())
         navigate(QUrl::fromLocalFile(dir.absolutePath()));
 }
-void PaneController::refresh() { if (m_url.isLocalFile()) m_model.load(m_url, m_hidden); }
+void PaneController::refresh()
+{
+    if (tagView() && m_tags) m_model.loadTagged(m_tags->paths(tagId()));
+    else if (m_url.isLocalFile()) m_model.load(m_url, m_hidden);
+}
+
+bool PaneController::validLocation(const QUrl &url)
+{
+    return (url.isLocalFile() && !url.toLocalFile().isEmpty())
+        || (url.scheme() == "hexplorer-tag" && url.host().isEmpty()
+            && url.query().isEmpty() && url.fragment().isEmpty() && TagStore::validTag(url.path().mid(1)));
+}
+void PaneController::showTag(QString tag)
+{
+    navigate(QUrl("hexplorer-tag:/" + tag));
+}
+void PaneController::setTagStore(TagStore *store)
+{
+    if (m_tags == store) return;
+    if (m_tags) disconnect(m_tags, nullptr, this, nullptr);
+    m_tags = store;
+    m_proxy.setTagStore(store);
+    if (store) connect(store, &TagStore::changed, this, [this] {
+        if (tagView()) refresh();
+    });
+    if (tagView()) refresh();
+}
 
 void PaneController::activateEntry(int row)
 {
@@ -165,7 +193,7 @@ void PaneController::restore(const QJsonObject &state)
         QList<QUrl> valid;
         for (const auto &value : history) {
             const QUrl url(value.toString());
-            if (url.isLocalFile())
+            if (validLocation(url))
                 valid.append(url);
         }
         const int index = state.value("historyIndex").toInt(-1);

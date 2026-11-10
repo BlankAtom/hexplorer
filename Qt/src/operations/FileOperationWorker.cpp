@@ -712,6 +712,7 @@ private:
         check();
         if (!nativeRenameNoReplace(node.source, target.path))
             return false;
+        job.relocated.append({node.source, target.path});
         ++mutations;
         completed += node.files;
         done += node.bytes;
@@ -755,6 +756,7 @@ private:
                 if (!QDir().rmdir(node.source))
                     fail(QStringLiteral("Copied directory but could not remove source (it may have changed): %1")
                         .arg(node.source));
+                job.relocated.append({node.source, target.path});
                 ++mutations;
             }
             return all;
@@ -826,6 +828,7 @@ private:
                 fail(QStringLiteral("Target committed, but changed source was not removed: %1").arg(node.source));
             if (!QFile::remove(node.source))
                 fail(QStringLiteral("Target committed, but source could not be removed: %1").arg(node.source));
+            job.relocated.append({node.source, target.path});
         }
     }
     void extractFile(const Node &node, const Target &target, Archive &archive) {

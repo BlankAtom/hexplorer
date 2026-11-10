@@ -5,6 +5,7 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     property bool previewMode: false
+    signal settingsRequested()
     color: colors.palette.base
     radius: 8
     clip: true
@@ -15,6 +16,15 @@ Rectangle {
         spacing: 8
         RowLayout {
             Label { text: root.previewMode ? qsTr("Preview") : qsTr("Explorer"); font.bold: true; font.pixelSize: 16; Layout.fillWidth: true }
+            ToolButton {
+                visible: !root.previewMode
+                text: "\uE713"
+                font.family: "Segoe Fluent Icons"
+                Accessible.name: qsTr("Navigation settings")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Navigation settings")
+                onClicked: root.settingsRequested()
+            }
             ToolButton {
                 visible: root.previewMode
                 text: qsTr("Pin")
@@ -28,15 +38,55 @@ Rectangle {
             visible: !root.previewMode
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Label { text: qsTr("QUICK ACCESS"); font.pixelSize: 10; font.letterSpacing: 1; opacity: 0.6; Layout.topMargin: 8 }
-            Repeater {
-                model: appController.places
-                delegate: ItemDelegate {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    text: modelData.name
-                    onClicked: appController.workspace.activePane.navigate(modelData.url)
-                    height: 32
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(navigationItems.implicitHeight, root.height * 0.65)
+                clip: true
+                contentWidth: availableWidth
+                ColumnLayout {
+                    id: navigationItems
+                    width: parent.width
+                    spacing: 2
+                    ToolButton {
+                        objectName: "quickAccessToggle"
+                        visible: appController.navigation.visible
+                        Layout.fillWidth: true
+                        text: (appController.navigation.expanded ? "\u2304  " : "\u203A  ") + qsTr("QUICK ACCESS")
+                        Accessible.name: qsTr("Quick Access")
+                        Accessible.description: appController.navigation.expanded ? qsTr("Expanded") : qsTr("Collapsed")
+                        onClicked: appController.navigation.expanded = !appController.navigation.expanded
+                    }
+                    Repeater {
+                        model: appController.navigation.visible && appController.navigation.expanded ? appController.navigation.places : []
+                        delegate: ItemDelegate {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            text: modelData.name
+                            onClicked: appController.workspace.activePane.navigate(modelData.url)
+                            height: 32
+                        }
+                    }
+                    Label { text: qsTr("COLOR TAGS"); font.pixelSize: 10; font.letterSpacing: 1; opacity: 0.6; Layout.topMargin: 12 }
+                    Repeater {
+                        model: appController.tags.palette
+                        delegate: ItemDelegate {
+                            required property var modelData
+                            objectName: "sidebar-tag-" + modelData.id
+                            Layout.fillWidth: true
+                            height: 32
+                            highlighted: appController.workspace.activePane && appController.workspace.activePane.tagId === modelData.id
+                            contentItem: Row {
+                                spacing: 10
+                                Rectangle {
+                                    width: 10; height: 10; radius: 5; color: modelData.color
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Label { text: modelData.name; textFormat: Text.PlainText }
+                            }
+                            Accessible.name: qsTr("%1 tagged items").arg(modelData.name)
+                            onClicked: appController.showTag(modelData.id)
+                        }
+                    }
                 }
             }
             Label { text: qsTr("FOLDERS"); font.pixelSize: 10; font.letterSpacing: 1; opacity: 0.6; Layout.topMargin: 8 }

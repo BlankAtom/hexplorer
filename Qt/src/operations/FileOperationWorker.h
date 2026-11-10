@@ -20,6 +20,7 @@ struct Job {
     bool waiting = false;
     bool decisionReady = false;
     QString decision;
+    QList<QPair<QString, QString>> relocated;
 };
 
 struct Update {

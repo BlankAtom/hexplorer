@@ -7,6 +7,7 @@
 #include <QFileSystemModel>
 #include <QSettings>
 #include <QThreadPool>
+#include "NavigationSettings.h"
 
 class AppController : public QObject {
     Q_OBJECT
@@ -15,7 +16,9 @@ class AppController : public QObject {
     Q_PROPERTY(NativeServices* native READ native CONSTANT)
     Q_PROPERTY(PreviewController* preview READ preview CONSTANT)
     Q_PROPERTY(QFileSystemModel* tree READ tree CONSTANT)
-    Q_PROPERTY(QVariantList places READ places CONSTANT)
+    Q_PROPERTY(NavigationSettings* navigation READ navigation CONSTANT)
+    Q_PROPERTY(TagStore* tags READ tags CONSTANT)
+    Q_PROPERTY(QVariantList selectionTags READ selectionTags NOTIFY selectionTagsChanged)
     Q_PROPERTY(bool leftVisible READ leftVisible WRITE setLeftVisible NOTIFY settingsChanged)
     Q_PROPERTY(bool rightVisible READ rightVisible WRITE setRightVisible NOTIFY settingsChanged)
     Q_PROPERTY(bool swapSides READ swapSides WRITE setSwapSides NOTIFY settingsChanged)
@@ -31,7 +34,12 @@ public:
     NativeServices *native() { return &m_native; }
     PreviewController *preview() { return &m_preview; }
     QFileSystemModel *tree() { return &m_tree; }
-    QVariantList places() const;
+    NavigationSettings *navigation() { return &m_navigation; }
+    TagStore *tags() { return &m_tags; }
+    QVariantList selectionTags() const;
+    Q_INVOKABLE void tagSelection(QString tag, bool enabled);
+    Q_INVOKABLE void clearSelectionTags();
+    Q_INVOKABLE void showTag(QString tag);
     bool leftVisible() const { return m_leftVisible; }
     bool rightVisible() const { return m_rightVisible; }
     bool swapSides() const { return m_swapSides; }
@@ -71,12 +79,15 @@ signals:
     void notification(QString message);
     void deletionRequested(int count, bool permanent);
     void nameRequested(QString title, QString initialName);
+    void selectionTagsChanged();
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 private:
     QVariantList selection() const;
     void updatePreview();
     void runMutation(QString source, QString destination, bool createDirectory);
+    TagStore m_tags;
+    NavigationSettings m_navigation;
     Workspace m_workspace;
     TaskManager m_tasks;
     NativeServices m_native;

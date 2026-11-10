@@ -14,7 +14,7 @@ DirectoryModel::DirectoryModel(QObject *parent) : QAbstractListModel(parent)
     m_refresh.setInterval(250);
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, &m_refresh,
             qOverload<>(&QTimer::start));
-    connect(&m_refresh, &QTimer::timeout, this, [this] { load(m_url, m_hidden); });
+    connect(&m_refresh, &QTimer::timeout, this, [this] { if (m_url.isLocalFile()) load(m_url, m_hidden); });
 }
 
 DirectoryModel::~DirectoryModel()
@@ -144,6 +144,49 @@ void DirectoryModel::append(quint64 generation, QList<FileEntry> entries)
     endInsertRows();
 }
 
+void DirectoryModel::loadTagged(const QStringList &paths)
+{
+    m_refresh.stop();
+    if (m_cancel) m_cancel->store(true);
+    m_pool.clear();
+    m_cancel = std::make_shared<std::atomic_bool>(false);
+    const auto cancel = m_cancel;
+    const auto generation = ++m_generation;
+    m_url = {};
+    if (!m_watcher.directories().isEmpty()) m_watcher.removePaths(m_watcher.directories());
+    m_error.clear();
+    emit errorChanged();
+    m_loading = true;
+    emit loadingChanged();
+    beginResetModel();
+    m_entries.clear();
+    endResetModel();
+    (void)QtConcurrent::run(&m_pool, [this, paths, cancel, generation] {
+        QList<FileEntry> batch;
+        int missing = 0;
+        for (const auto &path : paths) {
+            if (cancel->load()) return;
+            const QFileInfo info(path);
+            if (!info.exists()) { ++missing; continue; }
+            batch.append({info.fileName(), info.absoluteFilePath(), info.size(), info.lastModified(),
+                          info.isDir(), info.isSymbolicLink() || info.isJunction()});
+            if (batch.size() == 256) {
+                QMetaObject::invokeMethod(this, [this, generation, batch] { append(generation, batch); });
+                batch.clear();
+            }
+        }
+        QMetaObject::invokeMethod(this, [this, generation, batch, missing] {
+            if (generation != m_generation) return;
+            append(generation, batch);
+            m_loading = false;
+            m_error = missing ? tr("%1 tagged item(s) are unavailable. Their tags have been kept.").arg(missing) : QString();
+            emit loadingChanged();
+            emit errorChanged();
+            emit scanFinished();
+        });
+    });
+}
+
 DirectoryProxy::DirectoryProxy(QObject *parent) : QSortFilterProxyModel(parent)
 {
     setDynamicSortFilter(true);
@@ -155,6 +198,8 @@ DirectoryProxy::DirectoryProxy(QObject *parent) : QSortFilterProxyModel(parent)
 
 QVariant DirectoryProxy::data(const QModelIndex &index, int role) const
 {
+    if (role == TagColorsRole)
+        return m_tags ? m_tags->colors(QSortFilterProxyModel::data(index, DirectoryModel::PathRole).toString()) : QStringList();
     if (role == SelectedRole)
         return m_selected.contains(QSortFilterProxyModel::data(index, DirectoryModel::PathRole).toString());
     return QSortFilterProxyModel::data(index, role);
@@ -164,7 +209,18 @@ QHash<int, QByteArray> DirectoryProxy::roleNames() const
 {
     auto roles = QSortFilterProxyModel::roleNames();
     roles.insert(SelectedRole, "selected");
+    roles.insert(TagColorsRole, "tagColors");
     return roles;
+}
+
+void DirectoryProxy::setTagStore(TagStore *store)
+{
+    if (m_tags == store) return;
+    if (m_tags) disconnect(m_tags, nullptr, this, nullptr);
+    m_tags = store;
+    if (m_tags) connect(m_tags, &TagStore::changed, this, [this] {
+        if (rowCount()) emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {TagColorsRole});
+    });
 }
 
 QVariantList DirectoryProxy::selectedUrls() const

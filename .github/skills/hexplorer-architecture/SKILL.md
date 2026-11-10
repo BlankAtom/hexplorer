@@ -25,6 +25,8 @@ Read the relevant headers and their implementations before changing APIs:
 | `Qt\src\core\PaneController.*` | Directory navigation, history, per-pane options and scroll position |
 | `Qt\src\core\Workspace.*` | Binary split tree, normalized pane rectangles, active pane, persistence |
 | `Qt\src\core\AppController.*` | Commands, settings, preview coordination and UI requests |
+| `Qt\src\core\NavigationSettings.*` | Persistent Quick Access visibility, expanded state and custom folders |
+| `Qt\src\core\TagStore.*` | Local multi-color metadata, global tag queries and path relocation |
 | `Qt\src\main.cpp` | Type registration, context object, image provider and QML entry point |
 
 ## Preserve the boundaries
@@ -62,6 +64,12 @@ SplitView controls sidebar widths. Preserve pane identities when changing
 layouts so histories and selection are not accidentally exchanged.
 
 ## Validation
+
+Color tags are local path-based metadata, not Finder/NTFS tags. Global tag
+views use `hexplorer-tag:/<color>` as a pane location with normal history.
+Use actual `TaskManager::pathRelocated` results, not requested destinations, to
+migrate tags after native/copy-fallback moves, keep-both and partial tasks.
+Directory descendants must migrate too. External operations are not tracked.
 
 Use the existing `coretests` and `apptests` targets and CTest names `core` and
 `app`. Cover changed history, filtering, selection, stale scans, layout

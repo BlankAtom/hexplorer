@@ -90,6 +90,8 @@ int main(int argc, char *argv[])
     qmlRegisterUncreatableType<PaneController>("HExplorer.Core", 1, 0, "PaneController", "Owned by a workspace");
     qmlRegisterUncreatableType<LayoutNode>("HExplorer.Core", 1, 0, "LayoutNode", "Owned by a workspace");
     qmlRegisterUncreatableType<Workspace>("HExplorer.Core", 1, 0, "Workspace", "Owned by the app");
+    qmlRegisterUncreatableType<NavigationSettings>("HExplorer.Core", 1, 0, "NavigationSettings", "Owned by the app");
+    qmlRegisterUncreatableType<TagStore>("HExplorer.Core", 1, 0, "TagStore", "Owned by the app");
     qmlRegisterUncreatableType<TaskManager>("HExplorer.Core", 1, 0, "TaskManager", "Owned by the app");
     qmlRegisterUncreatableType<NativeServices>("HExplorer.Core", 1, 0, "NativeServices", "Owned by the app");
     qmlRegisterUncreatableType<PreviewController>("HExplorer.Core", 1, 0, "PreviewController", "Owned by the app");
@@ -193,11 +195,67 @@ int main(int argc, char *argv[])
                 controller.preview()->preview(QUrl::fromLocalFile(smokeDirectory->filePath("Pictures\\Sample.png")));
             } else if (stage == 7) {
                 if (controller.preview()->kind() != "image") return;
+            } else if (stage == 8) {
+                if (auto *popup = engine.rootObjects().first()->findChild<QObject*>("taskCenter"))
+                    QMetaObject::invokeMethod(popup, "close");
+                controller.navigation()->setExpanded(false);
+                controller.navigation()->setVisible(false);
+                controller.navigation()->add("Smoke custom folder", smokeDirectory->filePath("Copies"));
+                if (auto *dialog = engine.rootObjects().first()->findChild<QObject*>("navigationDialog"))
+                    QMetaObject::invokeMethod(dialog, "open");
+                else qmlWarning = true;
+            } else if (stage == 9) {
+                if (auto *dialog = engine.rootObjects().first()->findChild<QObject*>("navigationDialog"))
+                    QMetaObject::invokeMethod(dialog, "close");
+                controller.navigation()->setVisible(true);
+                controller.workspace()->activate(first);
+                if (!controller.tags()->setTag({QUrl::fromLocalFile(smokeDirectory->filePath("Welcome.txt")),
+                                                QUrl::fromLocalFile(smokeDirectory->filePath("Pictures\\Sample.png"))},
+                                               "red", true)) qmlWarning = true;
+                first->showTag("red");
+            } else if (stage == 10) {
+                if (first->loading()) return;
+                if (first->files()->count() != 2) { qmlWarning = true; return; }
+                first->files()->selectAll();
+                if (auto *menu = engine.rootObjects().first()->findChild<QObject*>("toolbarTagMenu"))
+                    QMetaObject::invokeMethod(menu, "open");
+                else qmlWarning = true;
+            } else if (stage == 11) {
+                auto *menu = engine.rootObjects().first()->findChild<QObject*>("toolbarTagMenu");
+                auto *content = menu ? menu->property("contentItem").value<QQuickItem*>() : nullptr;
+                auto *item = findVisualItem(content, "tag-action-blue");
+                if (!item) { qmlWarning = true; return; }
+                if (!QMetaObject::invokeMethod(item, "click")) qmlWarning = true;
+            } else if (stage == 12) {
+                if (controller.tags()->paths("blue").size() != 2) qmlWarning = true;
+                auto *menu = engine.rootObjects().first()->findChild<QObject*>("toolbarTagMenu");
+                if (menu && menu->property("visible").toBool()) return;
+            } else if (stage == 13) {
+                if (first->loading()) return;
+                if (first->files()->count() != 2) qmlWarning = true;
+                first->showTag("blue");
+            } else if (stage == 14) {
+                if (first->loading()) return;
+                if (first->files()->count() != 2) qmlWarning = true;
+                first->setGrid(true);
+            } else if (stage == 15) {
+                for (const auto &name : {QString("Welcome.txt"), QString("Sample.png")}) {
+                    auto *item = findVisualItem(pane, "file-item-" + name);
+                    auto *icon = findVisualItem(item, "file-icon");
+                    if (!icon || icon->property("status").toInt() != 1) return;
+                }
+            } else if (stage == 16) {
+                first->setGrid(false);
+                controller.setSwapSides(false);
+                controller.preview()->preview(QUrl::fromLocalFile(smokeDirectory->filePath("Pictures\\Sample.png")));
+            } else if (stage == 17) {
+                if (controller.preview()->kind() != "image") return;
+                controller.setTheme(1);
             } else {
                 if (parser.isSet("smoke-screenshot")
                     && !window->grabWindow().save(parser.value("smoke-screenshot")))
                     qmlWarning = true;
-                qInfo("Smoke result: warnings=%d; selection, both drop targets, previews and layouts exercised.", qmlWarning);
+                qInfo("Smoke result: warnings=%d; selection, drops, previews, layouts, navigation settings and multi-color tag views exercised.", qmlWarning);
                 steps->stop();
                 app.exit(qmlWarning ? 2 : 0);
             }

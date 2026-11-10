@@ -11,6 +11,7 @@
 #include <QUrl>
 #include <atomic>
 #include <memory>
+#include "TagStore.h"
 
 struct FileEntry {
     QString name;
@@ -37,6 +38,7 @@ public:
     bool loading() const { return m_loading; }
     QString error() const { return m_error; }
     void load(const QUrl &url, bool hidden);
+    void loadTagged(const QStringList &paths);
     QUrl url() const { return m_url; }
 signals:
     void loadingChanged();
@@ -62,7 +64,7 @@ class DirectoryProxy : public QSortFilterProxyModel {
     Q_PROPERTY(int selectionCount READ selectionCount NOTIFY selectionChanged)
     Q_PROPERTY(QVariantList selectedUrls READ selectedUrls NOTIFY selectionChanged)
 public:
-    enum { SelectedRole = DirectoryModel::LinkRole + 1 };
+    enum { SelectedRole = DirectoryModel::LinkRole + 1, TagColorsRole };
     explicit DirectoryProxy(QObject *parent = nullptr);
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
@@ -79,6 +81,7 @@ public:
     Q_INVOKABLE void beginBoxSelection(bool additive);
     Q_INVOKABLE void selectBox(QRectF box, double cellWidth, double cellHeight, int columns);
     void retainExistingSelection();
+    void setTagStore(TagStore *store);
 signals:
     void countChanged();
     void selectionChanged();
@@ -92,4 +95,5 @@ private:
     QString m_query;
     int m_anchor = -1;
     int m_sortKey = 0;
+    TagStore *m_tags = nullptr;
 };

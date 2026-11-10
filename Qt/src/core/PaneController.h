@@ -22,6 +22,8 @@ class PaneController : public QObject {
     Q_PROPERTY(bool grid READ grid WRITE setGrid NOTIFY optionsChanged)
     Q_PROPERTY(double scrollPosition READ scrollPosition WRITE setScrollPosition NOTIFY scrollPositionChanged)
     Q_PROPERTY(QRectF rect READ rect NOTIFY rectChanged)
+    Q_PROPERTY(bool tagView READ tagView NOTIFY locationChanged)
+    Q_PROPERTY(QString tagId READ tagId NOTIFY locationChanged)
 public:
     explicit PaneController(QObject *parent = nullptr);
     QString id() const { return m_id; }
@@ -40,6 +42,11 @@ public:
     bool grid() const { return m_grid; }
     double scrollPosition() const { return m_scrollPosition; }
     QRectF rect() const { return m_rect; }
+    bool tagView() const { return m_url.scheme() == "hexplorer-tag"; }
+    QString tagId() const { return tagView() ? m_url.path().mid(1) : QString(); }
+    void setTagStore(TagStore *store);
+    Q_INVOKABLE void showTag(QString tag);
+    static bool validLocation(const QUrl &url);
     void setRect(QRectF rect);
     void setShowHidden(bool value);
     void setQuery(const QString &query);
@@ -81,4 +88,5 @@ private:
     bool m_grid = false;
     double m_scrollPosition = 0;
     QRectF m_rect;
+    TagStore *m_tags = nullptr;
 };

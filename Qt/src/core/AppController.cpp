@@ -8,6 +8,7 @@
 #include <QStorageInfo>
 #include <QStyleHints>
 #include <QDropEvent>
+#include <QCoreApplication>
 #include <QLocale>
 #include <QtConcurrent>
 #include <limits>
@@ -31,6 +32,12 @@ AppController::AppController(QObject *parent) : QObject(parent)
     connect(&m_native, &NativeServices::errorOccurred, this, &AppController::notification);
     connect(&m_tasks, &TaskManager::errorOccurred, this, &AppController::notification);
     connect(&m_tasks, &TaskManager::taskFinished, this, &AppController::refreshAll);
+    connect(&m_tasks, &TaskManager::pathRelocated, &m_tags, &TagStore::relocate);
+    connect(&m_tags, &TagStore::errorOccurred, this, &AppController::notification);
+    connect(&m_navigation, &NavigationSettings::errorOccurred, this, &AppController::notification);
+    connect(&m_tags, &TagStore::changed, this, &AppController::selectionTagsChanged);
+    connect(&m_workspace, &Workspace::selectionChanged, this, &AppController::selectionTagsChanged);
+    connect(&m_workspace, &Workspace::activePaneChanged, this, &AppController::selectionTagsChanged);
     connect(&m_tasks, &TaskManager::successfulMove, this, [this](const QString &, const QVariantList &urls) {
         m_native.clearCutClipboard(urls);
     });
@@ -43,6 +50,7 @@ AppController::AppController(QObject *parent) : QObject(parent)
     const auto savedWorkspace = m_settings.value("workspace").toByteArray();
     QJsonParseError parseError;
     const auto document = QJsonDocument::fromJson(savedWorkspace, &parseError);
+    m_workspace.setTagStore(&m_tags);
     m_workspace.restore(document.object());
     if (!savedWorkspace.isEmpty() && (parseError.error != QJsonParseError::NoError || !document.isObject())) {
         m_settings.setValue("workspaceRecovery", savedWorkspace);
@@ -67,27 +75,34 @@ bool AppController::eventFilter(QObject *watched, QEvent *event)
 
 AppController::~AppController()
 {
-    saveSession();
     m_pool.waitForDone();
+    QCoreApplication::sendPostedEvents(this, QEvent::MetaCall);
+    saveSession();
 }
 
 bool AppController::busy() const { return m_tasks.busy() || m_mutations > 0; }
 
-QVariantList AppController::places() const
+
+QVariantList AppController::selectionTags() const
 {
-    QVariantList list;
-    auto append = [&](const QString &name, const QString &path) {
-        if (!path.isEmpty())
-            list.append(QVariantMap{{"name", name}, {"url", QUrl::fromLocalFile(path)}});
-    };
-    append(tr("Home"), QDir::homePath());
-    append(tr("Desktop"), QStandardPaths::writableLocation(QStandardPaths::DesktopLocation));
-    append(tr("Documents"), QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
-    append(tr("Downloads"), QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
-    append(tr("Pictures"), QStandardPaths::writableLocation(QStandardPaths::PicturesLocation));
-    for (const auto &drive : QDir::drives())
-        append(QDir::toNativeSeparators(drive.absoluteFilePath()), drive.absoluteFilePath());
-    return list;
+    auto palette = m_tags.palette();
+    const auto selected = selection();
+    for (auto &value : palette) {
+        auto item = value.toMap();
+        int count = 0;
+        for (const auto &url : selected)
+            if (m_tags.tags(url.toUrl().toLocalFile()).contains(item.value("id").toString())) ++count;
+        item.insert("checked", !selected.isEmpty() && count == selected.size());
+        item.insert("mixed", count > 0 && count < selected.size());
+        value = item;
+    }
+    return palette;
+}
+void AppController::tagSelection(QString tag, bool enabled) { m_tags.setTag(selection(), tag, enabled); }
+void AppController::clearSelectionTags() { m_tags.clear(selection()); }
+void AppController::showTag(QString tag)
+{
+    if (auto *pane = m_workspace.activePane()) pane->showTag(tag);
 }
 void AppController::setLeftVisible(bool value) { m_leftVisible = value; emit settingsChanged(); }
 void AppController::setRightVisible(bool value) { m_rightVisible = value; emit settingsChanged(); }
@@ -120,6 +135,7 @@ void AppController::paste()
 {
     auto *pane = m_workspace.activePane();
     if (!pane) return;
+    if (pane->tagView()) { emit notification(tr("Open a folder before pasting files.")); return; }
     const auto clipboard = m_native.clipboardFiles();
     const auto urls = clipboard.value("urls").toList();
     if (urls.isEmpty()) {
@@ -158,6 +174,7 @@ void AppController::requestFolder()
 {
     auto *pane = m_workspace.activePane();
     if (!pane) return;
+    if (pane->tagView()) { emit notification(tr("Open a folder before creating a new folder.")); return; }
     m_createDirectory = true;
     m_nameSource.clear();
     m_nameDirectory = pane->url();
@@ -191,10 +208,11 @@ void AppController::runMutation(QString source, QString destination, bool create
             if (!file.rename(destination))
                 error = file.errorString();
         }
-        QMetaObject::invokeMethod(this, [this, error] {
+        QMetaObject::invokeMethod(this, [this, error, source, destination, createDirectory] {
             --m_mutations;
             emit busyChanged();
             if (!error.isEmpty()) emit notification(error);
+            else if (!createDirectory) m_tags.relocate(source, destination);
             refreshAll();
         });
     });
@@ -204,6 +222,7 @@ void AppController::extract()
     auto *pane = m_workspace.activePane();
     const auto urls = selection();
     if (!pane || urls.isEmpty()) return;
+    if (pane->tagView()) { emit notification(tr("Open a destination folder before extracting files.")); return; }
     m_tasks.submit("extract", urls, pane->url());
 }
 void AppController::properties()

@@ -108,6 +108,11 @@ TaskManager::~TaskManager()
         job->condition.wakeAll();
     }
     m_pool.waitForDone();
+    // The event loop may already have stopped. Persist metadata for moves that
+    // completed before cancellation even when their queued result cannot run.
+    for (const auto &job : m_jobs)
+        for (const auto &paths : job->relocated)
+            emit pathRelocated(paths.first, paths.second);
 }
 
 QAbstractItemModel *TaskManager::model() const { return m_model; }
@@ -165,6 +170,8 @@ QString TaskManager::submit(QString operation, QVariantList sources, QUrl destin
         };
         const auto result = FileOperations::run(*job, progress, conflictCallback);
         QMetaObject::invokeMethod(this, [this, job, result] {
+            for (const auto &paths : job->relocated)
+                emit pathRelocated(paths.first, paths.second);
             m_model->update(job->id, result, true);
             m_jobs.remove(job->id);
             if (!busy())

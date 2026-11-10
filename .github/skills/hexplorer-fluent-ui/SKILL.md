@@ -19,6 +19,8 @@ Paths are workspace-root relative; the application source root is `Qt`.
 | `Qt\qml\FilePane.qml` | Address/filter controls, GridView delegates, selection, drops, shortcuts |
 | `Qt\qml\Sidebar.qml` | Shared tree/preview component selected by `previewMode` |
 | `Qt\qml\TaskCenter.qml` | Non-modal task popup bound to the C++ task model |
+| `Qt\qml\NavigationDialog.qml` | Quick Access settings, visibility and named custom folders |
+| `Qt\qml\TagMenu.qml` | Multi-selection color-tag menu with checked/mixed states |
 | `Qt\src\main.cpp` | FluentWinUI3 style, image provider and GUI smoke-test scenario |
 | `Qt\src\core\Workspace.*` | Layout geometry and split ratios |
 | `Qt\src\platform\PreviewController.*` | Safe preview state and asynchronous results |
@@ -64,6 +66,11 @@ DragEvent has no `modifiers` property; the existing C++ event filter supplies
 `appController.dragModifiers()`. Incoming URL lists use `QList<QUrl>`.
 
 ## Validation
+
+Quick Access collapsed/visible state and entries belong to NavigationSettings,
+not transient QML state. Tag dots use the model's `tagColors` role. Tag views
+can span directories, so preserve origin-path display and reject folder-only
+operations on their virtual address; folder-row drop targets still work.
 
 Run CTest `qml_smoke` after rebuilding `HExplorer`. It drives real file-view
 selection and both blank-area and folder-row drops, previews and layout changes.
