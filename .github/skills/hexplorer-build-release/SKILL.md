@@ -101,11 +101,26 @@ Inno Setup compiler via `-Iscc`, or the signature-verifying
 `Qt\scripts\install-inno.ps1` when it is missing. Do not terminate an open EXE:
 `build.ps1 -DeployDirectory <new-directory> -Package` supports separate output.
 
-The workflow `.github\workflows\windows-release.yml` publishes only matching
-tag pushes; pull requests and manual dispatches are build-only. Keep build
-permissions read-only and grant release writes only to the release job.
-Publish all assets to a draft and verify GitHub SHA-256 digests before marking
-latest. Do not overwrite an existing Release to recover a failed run blindly.
+The workflow `.github\workflows\release-please.yml` maintains Release PRs on
+`main`. Config is in `release-please-config.json`; the manifest is
+`.release-please-manifest.json`. Use conventional squash titles: feat bumps
+minor, fix patch, docs/ci/chore alone do not release. Release PRs update
+`Qt\VERSION.txt`, the manifest and `Qt\CHANGELOG.md`. Keep the initial bootstrap
+boundary unless intentionally reinitializing release history.
+
+After merging a Release PR, the preparation job creates a draft plus tag and
+explicitly calls `.github\workflows\windows-release.yml` with its exact SHA/tag/
+draft ID. GITHUB_TOKEN-generated tags will not trigger push workflows. Generated
+release PR CI is explicitly dispatched on its branch, so it checks the PR SHA.
+Actions must be allowed to create PRs in repository/organization settings; do
+not bypass protection or add credentials automatically.
+
+Matching manual tag pushes can still publish; ordinary PRs and manual
+dispatches remain build-only. Keep build permissions read-only, scope PR/tag
+and CI-dispatch writes to preparation, and publication writes to the release
+job. Verify tag/SHA/version agree. Reuse only the expected empty draft; publish
+after asset digests match. Never overwrite an existing Release or its assets
+to recover blindly. Failed drafts remain unpublished and may need manual review.
 
 Updater policy is in `Qt\src\updates\UpdateController.*`: explicit downloads,
 opt-in startup checks, stable versions only, bounded HTTPS downloads with

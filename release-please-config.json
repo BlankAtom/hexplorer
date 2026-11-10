@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "a93f2ec42de6850576351b93d4d1dbd22f9c573b",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "version-file": "Qt/VERSION.txt",
+      "changelog-path": "Qt/CHANGELOG.md",
+      "include-component-in-tag": false,
+      "include-v-in-tag": true,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false,
+      "draft": true,
+      "force-tag-creation": true
+    }
+  }
+}

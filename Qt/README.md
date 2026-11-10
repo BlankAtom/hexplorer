@@ -51,11 +51,59 @@ must be configured separately before claiming signed distributions.
 ### GitHub Actions
 
 `.github\workflows\windows-release.yml` builds Windows x64 on pull requests,
-manual dispatches and `v*` tag pushes. It runs CTest, deploys the runtime, creates
+manual dispatches, `v*` tag pushes, and calls from the release-PR workflow.
+It runs CTest, deploys the runtime, creates
 the portable ZIP and per-user setup, exercises installation/reinstallation and
-uninstall, and uploads CI artifacts. Only a **tag push** publishes a Release.
+uninstall, and uploads CI artifacts. A **tag push** or a **merged Release PR**
+publishes a Release; ordinary CI/manual builds do not.
 The tag must exactly match `v` plus `Qt\VERSION.txt` (for example `v0.2.0`).
 A manual dispatch is a build-only dry run, not a publication request.
+
+#### Automatic Release PRs
+
+`.github\workflows\release-please.yml` runs on pushes to `main`, including
+merged pull requests. Release Please v5 maintains a version PR based on
+Conventional Commits:
+
+| Commit / squash-merge title | Version change from 0.2.0 |
+|---|---|
+| `feat: add a feature` | `0.3.0` (minor; patch resets to zero) |
+| `fix: repair a bug` | `0.2.1` (patch) |
+| `feat!: change a contract` | `0.3.0` while below 1.0; major after 1.0 |
+| `docs: ...`, `ci: ...`, `chore: ...` only | No standalone release PR |
+
+Use the conventional prefix in the **squash-merge commit title**, not just the
+individual commits if those will be squashed. Several feature PRs can accumulate
+in one Release PR; merging every ordinary PR does not immediately publish a
+version. The highest applicable change determines the pending version.
+
+The Release PR updates `Qt\VERSION.txt`, `.release-please-manifest.json`, and
+generates `Qt\CHANGELOG.md`. Do not manually edit a generated Release PR's body
+or remove its `autorelease` labels: Release Please uses them to recognize a
+merged release. The initial manifest is seeded at `0.2.0` with the existing
+release implementation commit as the bootstrap boundary; older changes are not
+re-released. The next feature after that boundary proposes `0.3.0`.
+
+When the Release PR is merged, Release Please creates the exact `vX.Y.Z` tag
+and an **empty draft** Release. Its outputs directly call the reusable Windows
+workflow with the tagged commit SHA and draft ID. The build verifies the tag,
+source SHA and `VERSION.txt` agree. After all assets and digests are validated,
+the same draft is published, retaining its generated changelog notes.
+
+No PAT is required: `GITHUB_TOKEN`-generated tags do not trigger another push
+workflow, so publication uses `workflow_call` explicitly. Likewise, a generated
+PR does not automatically trigger `pull_request` CI; the preparation job
+explicitly dispatches the build-only Windows workflow on the PR's branch.
+This keeps checks attached to the PR head instead of the `main` preparation
+commit. Branch protections still apply; configure required checks to match the
+Windows build rather than the conditional publication job.
+
+Repository prerequisites: Actions must be enabled and the repository owner
+must enable **Settings > Actions > General > Workflow permissions > Allow
+GitHub Actions to create and approve pull requests**. If an organization policy
+disallows this, its administrator must allow it or supply an approved GitHub
+App/PAT design separately; this configuration does not bypass that restriction.
+The automation does not approve or merge Release PRs for you.
 
 Release assets are:
 
@@ -66,17 +114,27 @@ HExplorer-0.2.0-windows-x64-setup.exe.sha256
 SHA256SUMS.txt
 ```
 
-The release job alone has `contents: write`; normal build jobs are read-only.
-It uploads all assets to a draft, compares GitHub's installer digest with the
-built file, and only then publishes as latest. If a release already exists or
-publishing fails, it does not overwrite existing assets: inspect the failed run
-and any draft before retrying. GitHub Actions must be enabled and permitted to
-create releases. No repository/account settings or public release were changed
-by adding this workflow.
+The publication job has `contents: write`; normal build jobs are read-only.
+The separate Release Please preparation job has contents/PR/issue writes for
+branches, tags, release PRs and labels, plus `actions: write` for explicit PR CI.
+The publication job uploads all assets to a draft, compares GitHub's installer
+digest with the built file, and only then publishes as latest. Reusable publication accepts
+only the specific empty draft ID supplied by Release Please. Manual tag pushes
+create a new draft and refuse existing releases. If publishing fails, existing
+assets are never overwritten: inspect the failed run and draft before retrying.
+Re-running a failed publication run can retry an empty draft; if assets were
+already uploaded, it intentionally stops for manual review instead of replacing
+or deleting files. A failed draft stays unpublished, so the app updater cannot
+offer a partial release. Do not expect a later unrelated push to retry an
+already-tagged release automatically.
+No repository/account settings, tags, PRs or public releases were changed by
+adding these files.
 
-To prepare a release, update VERSION.txt, commit the intended changes, and push
-the matching version tag when authorized. Never put signing keys/tokens in
-source files; Actions uses its scoped `GITHUB_TOKEN` for publication.
+Normal release flow: merge conventional feature/fix PRs, review the generated
+Release PR, and merge it when ready. The manual fallback is to update VERSION.txt
+and the manifest consistently, commit, and push the matching version tag when
+authorized. Never put signing keys/tokens in source files; Actions uses its scoped
+`GITHUB_TOKEN` for publication.
 
 ### Local installer packaging
 
