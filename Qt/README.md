@@ -55,6 +55,10 @@ browsing. Files are never uploaded to a preview service.
 
 ### Quick Access and color tags
 
+The command bar is 48 device-independent pixels high. Quick Access headings
+are left-aligned; subtle, edge-faded separators distinguish Quick Access,
+color tags and the folder tree in both light and dark themes.
+
 Click the Quick Access heading to collapse or expand its entries. The last
 state is saved immediately and restored on the next launch. Open the sidebar's
 gear button or **View > Navigation settings** to hide/show the entire section,

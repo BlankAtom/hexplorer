@@ -37,7 +37,13 @@ ApplicationWindow {
     }
 
     header: ToolBar {
-        padding: 8
+        objectName: "commandBar"
+        implicitHeight: 48
+        height: 48
+        leftPadding: 8
+        rightPadding: 8
+        topPadding: 4
+        bottomPadding: 4
         RowLayout {
             anchors.fill: parent
             spacing: 4

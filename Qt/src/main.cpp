@@ -156,6 +156,16 @@ int main(int argc, char *argv[])
             auto *first = controller.workspace()->panes().first();
             auto *pane = findVisualItem(window->contentItem(), "file-pane-" + first->id());
             if (stage == 0) {
+                auto *commandBar = findVisualItem(window->contentItem(), "commandBar");
+                auto *quickAccessTitle = findVisualItem(window->contentItem(), "quickAccessTitle");
+                if (!commandBar || commandBar->height() != 48 || !quickAccessTitle
+                    || quickAccessTitle->property("horizontalAlignment").toInt() != Qt::AlignLeft
+                    || !findVisualItem(window->contentItem(), "quickAccessDivider")
+                    || !findVisualItem(window->contentItem(), "folderTreeDivider")) {
+                    qWarning("Compact toolbar or sidebar section styling is incorrect.");
+                    qmlWarning = true;
+                    return;
+                }
                 auto *item = findVisualItem(pane, "file-item-Welcome.txt");
                 if (!item || first->loading()) return;
                 const auto point = item->mapToScene({item->width() / 2, item->height() / 2});
@@ -247,9 +257,13 @@ int main(int argc, char *argv[])
             } else if (stage == 16) {
                 first->setGrid(false);
                 controller.setSwapSides(false);
+                controller.navigation()->setExpanded(true);
                 controller.preview()->preview(QUrl::fromLocalFile(smokeDirectory->filePath("Pictures\\Sample.png")));
             } else if (stage == 17) {
                 if (controller.preview()->kind() != "image") return;
+                if (parser.isSet("smoke-screenshot")
+                    && !window->grabWindow().save(parser.value("smoke-screenshot") + ".dark.png"))
+                    qmlWarning = true;
                 controller.setTheme(1);
             } else {
                 if (parser.isSet("smoke-screenshot")

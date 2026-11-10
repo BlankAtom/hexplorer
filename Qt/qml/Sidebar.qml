@@ -10,6 +10,23 @@ Rectangle {
     radius: 8
     clip: true
     Control { id: colors; visible: false }
+    component SectionDivider: Item {
+        implicitHeight: 16
+        Layout.fillWidth: true
+        Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width
+            height: 1
+            opacity: 0.16
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0; color: "transparent" }
+                GradientStop { position: 0.12; color: colors.palette.text }
+                GradientStop { position: 0.88; color: colors.palette.text }
+                GradientStop { position: 1; color: "transparent" }
+            }
+        }
+    }
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 12
@@ -48,10 +65,20 @@ Rectangle {
                     width: parent.width
                     spacing: 2
                     ToolButton {
+                        id: quickAccessToggle
                         objectName: "quickAccessToggle"
                         visible: appController.navigation.visible
                         Layout.fillWidth: true
                         text: (appController.navigation.expanded ? "\u2304  " : "\u203A  ") + qsTr("QUICK ACCESS")
+                        contentItem: Label {
+                            objectName: "quickAccessTitle"
+                            text: quickAccessToggle.text
+                            font: quickAccessToggle.font
+                            color: quickAccessToggle.palette.buttonText
+                            horizontalAlignment: Text.AlignLeft
+                            verticalAlignment: Text.AlignVCenter
+                            elide: Text.ElideRight
+                        }
                         Accessible.name: qsTr("Quick Access")
                         Accessible.description: appController.navigation.expanded ? qsTr("Expanded") : qsTr("Collapsed")
                         onClicked: appController.navigation.expanded = !appController.navigation.expanded
@@ -66,7 +93,11 @@ Rectangle {
                             height: 32
                         }
                     }
-                    Label { text: qsTr("COLOR TAGS"); font.pixelSize: 10; font.letterSpacing: 1; opacity: 0.6; Layout.topMargin: 12 }
+                    SectionDivider {
+                        objectName: "quickAccessDivider"
+                        visible: appController.navigation.visible
+                    }
+                    Label { text: qsTr("COLOR TAGS"); font.pixelSize: 10; font.letterSpacing: 1; opacity: 0.6 }
                     Repeater {
                         model: appController.tags.palette
                         delegate: ItemDelegate {
@@ -89,7 +120,8 @@ Rectangle {
                     }
                 }
             }
-            Label { text: qsTr("FOLDERS"); font.pixelSize: 10; font.letterSpacing: 1; opacity: 0.6; Layout.topMargin: 8 }
+            SectionDivider { objectName: "folderTreeDivider" }
+            Label { text: qsTr("FOLDERS"); font.pixelSize: 10; font.letterSpacing: 1; opacity: 0.6 }
             TreeView {
                 id: treeView
                 Layout.fillWidth: true
