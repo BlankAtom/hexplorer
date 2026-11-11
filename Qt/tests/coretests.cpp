@@ -6,6 +6,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QJsonArray>
 #include <QtTest>
 
 class CoreTests : public QObject {
@@ -105,6 +106,150 @@ private slots:
         pane.navigate(QUrl("https://example.invalid/"));
         QCOMPARE(errors.count(), 1);
         QVERIFY(pane.url().isEmpty());
+    }
+    void tabsKeepIndependentNavigationSelectionAndOptions()
+    {
+        QTemporaryDir a;
+        QTemporaryDir b;
+        QVERIFY(QDir(a.path()).mkdir("Child"));
+        writeFile(a.filePath("first.txt"));
+        writeFile(b.filePath("second.txt"));
+        PaneController pane;
+        pane.navigate(QUrl::fromLocalFile(a.path()));
+        pane.navigateText("Child");
+        pane.back();
+        QTRY_VERIFY(!pane.loading());
+        pane.setQuery("first");
+        pane.files()->selectAll();
+        pane.setCurrentRow(0);
+        pane.setScrollPosition(84);
+        pane.setGrid(true);
+        pane.setSortKey(2);
+        pane.setDescending(true);
+        auto *firstModel = pane.files();
+        const auto firstId = pane.tabs().first().toMap().value("id");
+        QSignalSpy switches(&pane, &PaneController::activeTabChanged);
+        QSignalSpy selections(&pane, &PaneController::selectionChanged);
+        pane.newTab(QUrl::fromLocalFile(b.path()));
+        QCOMPARE(pane.activeTab(), 1);
+        QCOMPARE(pane.tabs().size(), 2);
+        QVERIFY(pane.files() != firstModel);
+        QVERIFY(!pane.grid());
+        QVERIFY(!pane.canBack());
+        QVERIFY(pane.query().isEmpty());
+        QCOMPARE(pane.files()->selectionCount(), 0);
+        QTRY_VERIFY(!pane.loading());
+        QCOMPARE(pane.files()->entry(0).value("fileName").toString(), QString("second.txt"));
+        pane.files()->selectAll();
+        pane.setScrollPosition(20);
+        pane.switchTab(0);
+        QCOMPARE(pane.files(), firstModel);
+        QCOMPARE(pane.tabs().first().toMap().value("id"), firstId);
+        QCOMPARE(pane.files()->selectionCount(), 1);
+        QCOMPARE(pane.query(), QString("first"));
+        QCOMPARE(pane.currentRow(), 0);
+        QCOMPARE(pane.scrollPosition(), 84.0);
+        QVERIFY(pane.grid());
+        QVERIFY(pane.descending());
+        QCOMPARE(pane.sortKey(), 2);
+        QVERIFY(pane.canForward());
+        QVERIFY(switches.count() >= 2);
+        QVERIFY(selections.count() >= 2);
+        pane.forward();
+        QCOMPARE(pane.url(), QUrl::fromLocalFile(a.filePath("Child")));
+        pane.switchTab(1);
+        QCOMPARE(pane.files()->selectionCount(), 1);
+        QCOMPARE(pane.scrollPosition(), 20.0);
+        QCOMPARE(pane.url(), QUrl::fromLocalFile(b.path()));
+    }
+    void tabsCloseWithoutChangingOtherTabState()
+    {
+        QTemporaryDir dir;
+        PaneController pane;
+        pane.navigate(QUrl::fromLocalFile(dir.path()));
+        pane.newTab();
+        pane.newTab();
+        auto *third = pane.files();
+        const auto thirdId = pane.tabs().at(2).toMap().value("id");
+        pane.closeTab(0);
+        QCOMPARE(pane.tabs().size(), 2);
+        QCOMPARE(pane.activeTab(), 1);
+        QCOMPARE(pane.files(), third);
+        QCOMPARE(pane.tabs().at(1).toMap().value("id"), thirdId);
+        pane.nextTab();
+        QCOMPARE(pane.activeTab(), 0);
+        pane.nextTab(-1);
+        QCOMPARE(pane.activeTab(), 1);
+        pane.closeTab(1);
+        QCOMPARE(pane.tabs().size(), 1);
+        QCOMPARE(pane.activeTab(), 0);
+        QVERIFY(pane.files() != third);
+        pane.closeTab(0);
+        QCOMPARE(pane.tabs().size(), 1); // Closing the final tab does not close its pane.
+        QSignalSpy errors(&pane, &PaneController::errorOccurred);
+        pane.newTab(QUrl("https://example.invalid"));
+        QCOMPARE(errors.count(), 1);
+        QCOMPARE(pane.tabs().size(), 1);
+        pane.switchTab(-1);
+        pane.switchTab(100);
+        pane.closeTab(100);
+        QCOMPARE(pane.activeTab(), 0);
+    }
+    void multiTabSessionRestoresAndMigratesLegacyPane()
+    {
+        QTemporaryDir dir;
+        QVERIFY(QDir(dir.path()).mkdir("Child"));
+        TagStore tags;
+        Workspace workspace;
+        workspace.setTagStore(&tags);
+        workspace.preset(2);
+        auto *pane = workspace.panes().first();
+        pane->navigate(QUrl::fromLocalFile(dir.path()));
+        pane->navigateText("Child");
+        pane->setGrid(true);
+        pane->setQuery("documents");
+        pane->setScrollPosition(150);
+        pane->newTab(QUrl("hexplorer-tag:/red"));
+        workspace.panes().last()->newTab(QUrl::fromLocalFile(dir.filePath("Child")));
+        workspace.activate(workspace.panes().last());
+        const auto saved = workspace.save();
+        Workspace restored;
+        restored.setTagStore(&tags);
+        restored.restore(saved);
+        QCOMPARE(restored.save(), saved);
+        QCOMPARE(restored.panes().first()->tabs().size(), 2);
+        QCOMPARE(restored.activePane(), restored.panes().last());
+        auto *restoredFirst = restored.panes().first();
+        QCOMPARE(restoredFirst->tagId(), QString("red"));
+        restoredFirst->switchTab(0);
+        QTRY_VERIFY(!restoredFirst->loading());
+        QCOMPARE(restoredFirst->url(), QUrl::fromLocalFile(dir.filePath("Child")));
+        QCOMPARE(restoredFirst->query(), QString("documents"));
+        QVERIFY(restoredFirst->grid());
+        QCOMPARE(restoredFirst->scrollPosition(), 150.0);
+        QVERIFY(restoredFirst->canBack());
+
+        PaneController legacy;
+        legacy.restore({{"url", QUrl::fromLocalFile(dir.path()).toString()}, {"grid", true},
+                        {"history", QJsonArray{QUrl::fromLocalFile(dir.path()).toString()}}, {"historyIndex", 0}});
+        QCOMPARE(legacy.tabs().size(), 1);
+        QCOMPARE(legacy.url(), QUrl::fromLocalFile(dir.path()));
+        QVERIFY(legacy.grid());
+        QCOMPARE(legacy.save().value("tabs").toArray().size(), 1);
+    }
+    void closingTabDuringEnumerationKeepsSurvivorUsable()
+    {
+        QTemporaryDir a;
+        QTemporaryDir b;
+        for (int i = 0; i < 600; ++i) writeFile(a.filePath(QString::number(i)));
+        writeFile(b.filePath("survivor.txt"));
+        PaneController pane;
+        pane.navigate(QUrl::fromLocalFile(b.path()));
+        pane.newTab(QUrl::fromLocalFile(a.path()));
+        pane.closeTab(1);
+        QTRY_VERIFY(!pane.loading());
+        QCOMPARE(pane.files()->count(), 1);
+        QCOMPARE(pane.files()->entry(0).value("fileName").toString(), QString("survivor.txt"));
     }
     void layoutsAndPersistence()
     {

@@ -11,6 +11,16 @@ FocusScope {
     readonly property var workspace: appController.workspace
     readonly property color accent: paletteSource.palette.highlight
     property bool draggingFiles: false
+    property bool restoringTab: false
+    function restoreTabView() {
+        restoringTab = true
+        address.text = pane.path
+        filter.text = pane.query
+        fileView.currentIndex = Math.min(pane.currentRow, fileView.count - 1)
+        if (!pane.loading)
+            fileView.contentY = Math.min(pane.scrollPosition, Math.max(0, fileView.contentHeight - fileView.height))
+        restoringTab = false
+    }
     clip: true
     onActiveChanged: if (active && address && filter && fileView && !address.activeFocus && !filter.activeFocus) fileView.forceActiveFocus()
     Component.onCompleted: if (active) fileView.forceActiveFocus()
@@ -74,6 +84,9 @@ FocusScope {
                     MenuItem { text: qsTr("Sort by modified date"); checkable: true; checked: root.pane.sortKey === 2; onTriggered: root.pane.sortKey = 2 }
                     MenuItem { text: qsTr("Descending"); checkable: true; checked: root.pane.descending; onTriggered: root.pane.descending = checked }
                     MenuSeparator {}
+                    MenuItem { text: qsTr("New tab"); onTriggered: root.pane.newTab() }
+                    MenuItem { text: qsTr("Close tab"); enabled: root.pane.tabs.length > 1; onTriggered: root.pane.closeTab(root.pane.activeTab) }
+                    MenuSeparator {}
                     MenuItem { text: qsTr("Split vertically"); onTriggered: root.workspace.split(root.pane, true) }
                     MenuItem { text: qsTr("Split horizontally"); onTriggered: root.workspace.split(root.pane, false) }
                     MenuItem { text: qsTr("Close pane"); enabled: root.workspace.panes.length > 1; onTriggered: root.workspace.closePane(root.pane) }
@@ -119,6 +132,7 @@ FocusScope {
             clip: true
             GridView {
                 id: fileView
+                objectName: "pane-file-view-" + root.pane.id
                 anchors.fill: parent
                 model: root.pane.files
                 cellWidth: root.pane.grid ? Math.max(96, width / Math.max(1, Math.floor(width / 112))) : width
@@ -128,7 +142,8 @@ FocusScope {
                 reuseItems: true
                 focus: root.active
                 ScrollBar.vertical: ScrollBar {}
-                onMovementEnded: root.pane.scrollPosition = contentY
+                onMovementEnded: if (!root.restoringTab && !root.pane.loading) root.pane.scrollPosition = contentY
+                onCurrentIndexChanged: if (!root.restoringTab && !root.pane.loading) root.pane.currentRow = currentIndex
                 Accessible.name: qsTr("Files in %1").arg(root.pane.path)
                 Keys.onPressed: function(event) {
                     if (event.key === Qt.Key_Down || event.key === Qt.Key_Up || event.key === Qt.Key_Left || event.key === Qt.Key_Right || event.key === Qt.Key_Home || event.key === Qt.Key_End) {
@@ -368,25 +383,6 @@ FocusScope {
                     action = appController.dropAction(drag.urls, root.pane.url, appController.dragModifiers(), drag.supportedActions)
                     drag.action = action
                 }
-                Menu {
-                    id: fileMenu
-                    MenuItem { text: qsTr("Open"); onTriggered: root.pane.activateEntry(fileView.currentIndex) }
-                    TagMenu {}
-                    MenuItem { text: qsTr("Rename"); onTriggered: appController.requestRename() }
-                    MenuItem {
-                        text: qsTr("Show in Explorer")
-                        enabled: root.pane.files.selectionCount === 1
-                        onTriggered: appController.native.reveal(root.pane.files.selectedUrls[0])
-                    }
-                    MenuSeparator {}
-                    MenuItem {
-                        text: qsTr("Windows context menu")
-                        onTriggered: {
-                            const point = root.mapToGlobal(fileMenu.x, fileMenu.y)
-                            appController.contextMenu(point.x, point.y)
-                        }
-                    }
-                }
                 onPositionChanged: function(drag) {
                     action = appController.dropAction(drag.urls, root.pane.url, appController.dragModifiers(), drag.supportedActions)
                     drag.action = action
@@ -412,17 +408,66 @@ FocusScope {
             }
         }
         ProgressBar { Layout.fillWidth: true; Layout.preferredHeight: 2; visible: root.pane.loading; indeterminate: true }
+        PaneTabs {
+            pane: root.pane
+            Layout.fillWidth: true
+            Layout.preferredHeight: 40
+            onActivated: {
+                root.workspace.activate(root.pane)
+                fileView.forceActiveFocus()
+            }
+        }
+    }
+    Menu {
+        id: fileMenu
+        MenuItem { text: qsTr("Open"); onTriggered: root.pane.activateEntry(fileView.currentIndex) }
+        MenuItem {
+            text: qsTr("Open folder in new tab")
+            enabled: root.pane.files.selectionCount === 1
+                     && root.pane.files.entry(fileView.currentIndex).isDirectory === true
+                     && root.pane.files.entry(fileView.currentIndex).selected === true
+            onTriggered: root.pane.newTab(root.pane.files.selectedUrls[0])
+        }
+        TagMenu {}
+        MenuItem { text: qsTr("Rename"); onTriggered: appController.requestRename() }
+        MenuItem {
+            text: qsTr("Show in Explorer")
+            enabled: root.pane.files.selectionCount === 1
+            onTriggered: appController.native.reveal(root.pane.files.selectedUrls[0])
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: qsTr("Windows context menu")
+            onTriggered: {
+                const point = root.mapToGlobal(fileMenu.x, fileMenu.y)
+                appController.contextMenu(point.x, point.y)
+            }
+        }
     }
     Connections {
         target: root.pane
-        function onLocationChanged() { address.text = root.pane.path; fileView.currentIndex = -1 }
+        function onActiveTabAboutToChange() {
+            if (!root.pane.loading) root.pane.scrollPosition = fileView.contentY
+            root.restoringTab = true
+        }
+        function onActiveTabChanged() {
+            fileMenu.close()
+            Qt.callLater(root.restoreTabView)
+        }
+        function onLocationChanged() {
+            address.text = root.pane.path
+            if (!root.restoringTab) fileView.currentIndex = root.pane.currentRow
+        }
         function onLoadingChanged() {
-            if (!root.pane.loading)
-                fileView.contentY = Math.min(root.pane.scrollPosition, Math.max(0, fileView.contentHeight - fileView.height))
+            if (!root.pane.loading) Qt.callLater(root.restoreTabView)
         }
     }
     Shortcut { sequence: "Ctrl+L"; enabled: root.active; onActivated: { address.forceActiveFocus(); address.selectAll() } }
     Shortcut { sequence: "Ctrl+F"; enabled: root.active; onActivated: { filter.forceActiveFocus(); filter.selectAll() } }
+    Shortcut { sequence: "Ctrl+T"; enabled: root.active; onActivated: root.pane.newTab() }
+    Shortcut { sequence: "Ctrl+W"; enabled: root.active; onActivated: root.pane.closeTab(root.pane.activeTab) }
+    Shortcut { sequence: "Ctrl+PgDown"; enabled: root.active; onActivated: root.pane.nextTab() }
+    Shortcut { sequence: "Ctrl+PgUp"; enabled: root.active; onActivated: root.pane.nextTab(-1) }
     Shortcut { sequence: "Alt+Left"; enabled: root.active; onActivated: root.pane.back() }
     Shortcut { sequence: "Alt+Right"; enabled: root.active; onActivated: root.pane.forward() }
     Shortcut { sequence: "Alt+Up"; enabled: root.active; onActivated: root.pane.up() }

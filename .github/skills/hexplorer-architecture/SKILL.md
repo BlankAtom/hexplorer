@@ -22,7 +22,7 @@ Read the relevant headers and their implementations before changing APIs:
 |---|---|
 | `Qt\src\core\DirectoryModel.*` | Background enumeration and generation rejection |
 | `Qt\src\core\DirectoryModel.*` (`DirectoryProxy`) | Model roles, filtering, sorting, selection and box selection |
-| `Qt\src\core\PaneController.*` | Directory navigation, history, per-pane options and scroll position |
+| `Qt\src\core\PaneController.*` | Per-pane tab ownership; each tab's directory model, navigation, history and view state |
 | `Qt\src\core\Workspace.*` | Binary split tree, normalized pane rectangles, active pane, persistence |
 | `Qt\src\core\AppController.*` | Commands, settings, preview coordination and UI requests |
 | `Qt\src\core\NavigationSettings.*` | Persistent Quick Access visibility, expanded state and custom folders |
@@ -61,6 +61,15 @@ Directory workers must not mutate Qt models from worker threads. Queue results
 to the owning thread and reject stale generations after navigation. Keep
 cancellation and lifetime handling intact; a stale result must not target a
 destroyed controller.
+
+A PaneController is the stable split-layout leaf, not a browsing tab. Its
+private TabState objects each own their DirectoryModel/DirectoryProxy, history,
+selection and options. Public browsing commands delegate to the active tab;
+switching emits `activeTabChanged`, including for the `files` property. Capture
+view-only coordinates before a switch with `activeTabAboutToChange`; do not
+reconstruct tabs as JavaScript arrays. Save all tabs/active index, migrate
+legacy single-pane JSON, and lazily load restored inactive tabs. Background
+tasks retain their original paths even if their source tab is closed.
 
 The central workspace is NOT a recursive QML SplitView. C++ computes rectangles
 from a binary tree; QML uses Repeaters for panes and dividers. The outer

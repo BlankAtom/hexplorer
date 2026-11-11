@@ -21,6 +21,7 @@
 #include <QDropEvent>
 #include <QMouseEvent>
 #include <QElapsedTimer>
+#include <QWheelEvent>
 #include <cstdio>
 #include <cstdlib>
 #ifdef Q_OS_WIN
@@ -100,6 +101,10 @@ int main(int argc, char *argv[])
         QSettings::setDefaultFormat(QSettings::IniFormat);
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, smokeDirectory->path());
         QDir(smokeDirectory->path()).mkdir("Pictures");
+        for (int i = 0; i < 80; ++i) {
+            QFile fixture(smokeDirectory->filePath(QString("Pictures\\Tab fixture %1.txt").arg(i)));
+            if (!fixture.open(QIODevice::WriteOnly) || fixture.write("Scroll fixture") < 0) return 3;
+        }
         QDir(smokeDirectory->path()).mkdir("Copies");
         QFile text(smokeDirectory->filePath("Welcome.txt"));
         if (!text.open(QIODevice::WriteOnly)) return 3;
@@ -125,6 +130,7 @@ int main(int argc, char *argv[])
     if (!parser.isSet("smoke-test") && controller.updates()->autoCheck())
         QTimer::singleShot(2000, controller.updates(), &UpdateController::check);
     if (smokeDirectory) {
+        controller.setWindowGeometry(1024, 768, false);
         for (auto *pane : controller.workspace()->panes())
             pane->navigate(QUrl::fromLocalFile(smokeDirectory->path()));
         controller.workspace()->panes().last()->navigate(QUrl::fromLocalFile(smokeDirectory->filePath("Copies")));
@@ -299,11 +305,165 @@ int main(int argc, char *argv[])
                     && !window->grabWindow().save(parser.value("smoke-screenshot") + ".dark.png"))
                     qmlWarning = true;
                 controller.setTheme(1);
+            } else if (stage == 18) {
+                auto *button = findVisualItem(pane, "new-pane-tab-" + first->id());
+                if (!button || !QMetaObject::invokeMethod(button, "click")
+                    || first->tabs().size() != 2 || first->activeTab() != 1) {
+                    qWarning("The per-pane new-tab button did not open a tab.");
+                    qmlWarning = true;
+                    return;
+                }
+                first->navigate(QUrl::fromLocalFile(smokeDirectory->filePath("Pictures")));
+            } else if (stage == 19) {
+                if (first->loading()) return;
+                first->setGrid(false);
+                auto *view = findVisualItem(pane, "pane-file-view-" + first->id());
+                if (!view || view->property("contentHeight").toDouble() < view->height() + 240) return;
+                first->files()->selectAll();
+                view->setProperty("contentY", 240.0);
+                view->setProperty("currentIndex", 8);
+                first->newTab(QUrl::fromLocalFile(smokeDirectory->filePath("Copies")));
+                first->newTab(QUrl::fromLocalFile(smokeDirectory->path()));
+            } else if (stage == 20) {
+                if (first->loading()) return;
+                auto *tabs = findVisualItem(pane, "pane-tabs-" + first->id());
+                auto *list = findVisualItem(pane, "pane-tab-list-" + first->id());
+                auto *view = findVisualItem(pane, "pane-file-view-" + first->id());
+                if (!tabs || !list || !view || list->property("contentWidth").toDouble() <= list->width()
+                    || tabs->property("tabWidth").toDouble() < 120
+                    || tabs->mapToScene({0, 0}).y() < view->mapToScene({0, view->height()}).y()) {
+                    qWarning("Pane tabs must be below the file view and overflow at their minimum width.");
+                    qmlWarning = true;
+                    return;
+                }
+                list->setProperty("contentX", 0);
+                const auto point = list->mapToScene({list->width() / 2, list->height() / 2});
+                const auto global = list->mapToGlobal({list->width() / 2, list->height() / 2});
+                QWheelEvent wheel(point, global, {}, {0, -120}, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+                QCoreApplication::sendEvent(window, &wheel);
+            } else if (stage == 21) {
+                auto *list = findVisualItem(pane, "pane-tab-list-" + first->id());
+                if (!list || list->property("contentX").toDouble() <= 0) {
+                    qWarning("The tab strip did not scroll horizontally on vertical wheel input.");
+                    qmlWarning = true;
+                    return;
+                }
+                const auto point = list->mapToScene({list->width() / 2, list->height() / 2});
+                const auto global = list->mapToGlobal({list->width() / 2, list->height() / 2});
+                QWheelEvent wheel(point, global, {}, {0, 120}, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+                QCoreApplication::sendEvent(window, &wheel);
+            } else if (stage == 22) {
+                auto *list = findVisualItem(pane, "pane-tab-list-" + first->id());
+                if (!list || list->property("contentX").toDouble() != 0) {
+                    qWarning("The tab strip did not scroll back on reverse wheel input.");
+                    qmlWarning = true;
+                    return;
+                }
+                const auto id = first->tabs().first().toMap().value("id").toString();
+                auto *button = findVisualItem(pane, "pane-tab-" + id);
+                if (!button || !QMetaObject::invokeMethod(button, "click") || first->activeTab() != 0) {
+                    qWarning("Clicking a tab did not switch its owning file pane.");
+                    qmlWarning = true;
+                    return;
+                }
+            } else if (stage == 23) {
+                if (first->loading()) return;
+                if (!first->tagView() || first->tagId() != "blue" || first->files()->selectionCount() != 0) {
+                    qWarning("Switching tabs failed to restore the previous browsing state.");
+                    qmlWarning = true;
+                    return;
+                }
+                const auto id = first->tabs().first().toMap().value("id").toString();
+                auto *button = findVisualItem(pane, "pane-tab-" + id);
+                auto *list = findVisualItem(pane, "pane-tab-list-" + first->id());
+                if (!button || !list) { qmlWarning = true; return; }
+                const auto point = list->mapToScene({list->width() / 2, list->height() / 2});
+                const auto global = list->mapToGlobal({list->width() / 2, list->height() / 2});
+                QWheelEvent wheel(point, global, {-10000, 0}, {}, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+                QCoreApplication::sendEvent(window, &wheel);
+            } else if (stage == 24) {
+                auto *list = findVisualItem(pane, "pane-tab-list-" + first->id());
+                if (!list || qAbs(list->property("contentX").toDouble()
+                                  - (list->property("contentWidth").toDouble() - list->width())) > 1) {
+                    qWarning("Horizontal trackpad input did not scroll/clamp the overflow.");
+                    qmlWarning = true;
+                    return;
+                }
+                const auto id = first->tabs().last().toMap().value("id").toString();
+                auto *close = findVisualItem(pane, "close-pane-tab-" + id);
+                if (!close || !QMetaObject::invokeMethod(close, "click") || first->tabs().size() != 3) {
+                    qWarning("A tab close button failed to close its tab.");
+                    qmlWarning = true;
+                    return;
+                }
+                first->closeTab(2);
+                first->switchTab(1);
+            } else if (stage == 25) {
+                if (first->loading()) return;
+                auto *view = findVisualItem(pane, "pane-file-view-" + first->id());
+                if (first->url() != QUrl::fromLocalFile(smokeDirectory->filePath("Pictures"))
+                    || first->files()->selectionCount() == 0 || !view
+                    || qAbs(view->property("contentY").toDouble() - 240) > 1
+                    || view->property("currentIndex").toInt() != 8) {
+                    qWarning("The second tab lost its folder, selection, scroll position or focus row.");
+                    qmlWarning = true;
+                    return;
+                }
+                first->switchTab(0);
+                controller.workspace()->preset(2);
+            } else if (stage == 26) {
+                auto *list = findVisualItem(pane, "pane-tab-list-" + first->id());
+                auto *tabs = findVisualItem(pane, "pane-tabs-" + first->id());
+                if (!list || !tabs || first->tabs().size() != 2
+                    || list->width() <= 0 || list->width() >= 240
+                    || tabs->property("tabWidth").toDouble() != 120
+                    || qAbs(list->property("contentWidth").toDouble() - 240) > 1) {
+                    qWarning("Narrow tab strip must overflow with two 120-pixel tabs (viewport=%.1f, tab=%.1f, content=%.1f).",
+                             list ? list->width() : -1,
+                             tabs ? tabs->property("tabWidth").toDouble() : -1,
+                             list ? list->property("contentWidth").toDouble() : -1);
+                    qmlWarning = true;
+                    return;
+                }
+                qInfo("Narrow tab strip: viewport=%.1f, tab=120, content=%.1f.",
+                      list->width(), list->property("contentWidth").toDouble());
+                controller.setLeftVisible(false);
+                controller.setRightVisible(false);
+            } else if (stage == 27) {
+                auto *list = findVisualItem(pane, "pane-tab-list-" + first->id());
+                auto *tabs = findVisualItem(pane, "pane-tabs-" + first->id());
+                if (!list || !tabs) { qmlWarning = true; return; }
+                if (list->width() <= 240) return; // Wait for the sidebar layout change.
+                if (first->tabs().size() != 2
+                    || qAbs(tabs->property("tabWidth").toDouble() * 2 - list->width()) > 1
+                    || qAbs(list->property("contentWidth").toDouble() - list->width()) > 1) {
+                    qWarning("Wide tab strip must fit two equally expanded tabs (viewport=%.1f, tab=%.1f, content=%.1f).",
+                             list->width(), tabs->property("tabWidth").toDouble(),
+                             list->property("contentWidth").toDouble());
+                    qmlWarning = true;
+                    return;
+                }
+                qInfo("Wide tab strip: viewport=%.1f, tab=%.1f, content=%.1f.",
+                      list->width(), tabs->property("tabWidth").toDouble(),
+                      list->property("contentWidth").toDouble());
+                controller.setLeftVisible(true);
+                controller.setRightVisible(true);
+            } else if (stage == 28) {
+                auto *list = findVisualItem(pane, "pane-tab-list-" + first->id());
+                auto *tabs = findVisualItem(pane, "pane-tabs-" + first->id());
+                if (!list || !tabs) { qmlWarning = true; return; }
+                if (list->width() >= 240) return;
+                if (tabs->property("tabWidth").toDouble() != 120
+                    || list->property("contentWidth").toDouble() <= list->width()) {
+                    qWarning("Tabs did not return to minimum-width overflow after restoring the sidebars.");
+                    qmlWarning = true;
+                    return;
+                }
             } else {
                 if (parser.isSet("smoke-screenshot")
                     && !window->grabWindow().save(parser.value("smoke-screenshot")))
                     qmlWarning = true;
-                qInfo("Smoke result: warnings=%d; selection, drops, previews, layouts, navigation settings and multi-color tag views exercised.", qmlWarning);
+                qInfo("Smoke result: warnings=%d; selection, drops, previews, layouts, settings, tags and bottom per-pane tabs with wheel overflow exercised.", qmlWarning);
                 steps->stop();
                 app.exit(qmlWarning ? 2 : 0);
             }

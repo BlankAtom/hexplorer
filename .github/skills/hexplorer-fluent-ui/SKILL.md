@@ -17,6 +17,7 @@ Paths are workspace-root relative; the application source root is `Qt`.
 |---|---|
 | `Qt\qml\Main.qml` | ApplicationWindow, command bar, sidebars, pane placement, dialogs |
 | `Qt\qml\FilePane.qml` | Address/filter controls, GridView delegates, selection, drops, shortcuts |
+| `Qt\qml\PaneTabs.qml` | Bottom per-pane tab strip, adaptive widths, close/new actions and wheel scrolling |
 | `Qt\qml\Sidebar.qml` | Shared tree/preview component selected by `previewMode` |
 | `Qt\qml\TaskCenter.qml` | Non-modal task popup bound to the C++ task model |
 | `Qt\qml\NavigationDialog.qml` | Settings tabs, Quick Access visibility and named custom folders |
@@ -57,6 +58,14 @@ Use anchors within a component and Layout properties for its placement in a
 layout. Do not combine competing anchors and layout-managed sizing on the same
 item. Central pane/divider geometry comes from C++, not a duplicate QML tree.
 
+Each FilePane's tab strip stays below its viewport. Tab state is C++ owned;
+QML only sizes tabs equally with a 120-logical-pixel minimum, scrolls the
+overflow, and submits switch/new/close commands. Wheel input over the strip
+must scroll horizontally, not the directory or active tab. Keep the final tab
+open. Preserve Ctrl+Tab for panel switching; tab cycling uses Ctrl+PageUp/Down.
+When changing the active model, suppress writes from view resets and restore
+that tab's focus row/scroll position once layout and loading settle.
+
 Render filenames and file content with PlainText. Keep preview reads in C++;
 images use bounded requested dimensions and asynchronous loading. Shell icons
 and thumbnails come from `image://shell/`, not synchronous QML filesystem work.
@@ -76,6 +85,9 @@ operations on their virtual address; folder-row drop targets still work.
 Run CTest `qml_smoke` after rebuilding `HExplorer`. It drives real file-view
 selection and both blank-area and folder-row drops, previews and layout changes.
 It is not a substitute for all interactive Explorer/OLE or mixed-DPI scenarios.
+Responsive tab assertions must control available width: the smoke window is
+1024 by 768 and toggles sidebars to cover minimum-width overflow and equal
+expansion separately. Do not assume a CI desktop is wide enough for fitted tabs.
 
 The executable supports:
 
