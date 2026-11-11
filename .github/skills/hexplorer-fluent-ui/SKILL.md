@@ -85,6 +85,9 @@ operations on their virtual address; folder-row drop targets still work.
 Run CTest `qml_smoke` after rebuilding `HExplorer`. It drives real file-view
 selection and both blank-area and folder-row drops, previews and layout changes.
 It is not a substitute for all interactive Explorer/OLE or mixed-DPI scenarios.
+Responsive tab assertions must control available width: the smoke window is
+1024 by 768 and toggles sidebars to cover minimum-width overflow and equal
+expansion separately. Do not assume a CI desktop is wide enough for fitted tabs.
 
 The executable supports:
 

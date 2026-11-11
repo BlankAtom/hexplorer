@@ -383,6 +383,12 @@ exits with a failure code on QML warnings or incomplete copying. It also sends
 mouse-selection and file-drop events through the real QML view, covering both
 blank-space and folder-row drop targets.
 
+The UI smoke test uses a controlled 1024-by-768 window rather than assuming
+the runner has a large desktop. It verifies two minimum-width tabs overflow
+with sidebars open, then hides the sidebars to verify equal expansion, and
+restores them to verify overflow returns. This checks both responsive states
+without treating a narrow CI viewport as a layout failure.
+
 For model-only development, configure `-DHEXPLORER_CORE_ONLY=ON`. This avoids the
 native application and ZIP integration targets. Set it back to `OFF` for the
 full application.

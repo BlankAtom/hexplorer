@@ -130,6 +130,7 @@ int main(int argc, char *argv[])
     if (!parser.isSet("smoke-test") && controller.updates()->autoCheck())
         QTimer::singleShot(2000, controller.updates(), &UpdateController::check);
     if (smokeDirectory) {
+        controller.setWindowGeometry(1024, 768, false);
         for (auto *pane : controller.workspace()->panes())
             pane->navigate(QUrl::fromLocalFile(smokeDirectory->path()));
         controller.workspace()->panes().last()->navigate(QUrl::fromLocalFile(smokeDirectory->filePath("Copies")));
@@ -414,9 +415,47 @@ int main(int argc, char *argv[])
                 auto *list = findVisualItem(pane, "pane-tab-list-" + first->id());
                 auto *tabs = findVisualItem(pane, "pane-tabs-" + first->id());
                 if (!list || !tabs || first->tabs().size() != 2
-                    || list->width() < 240
-                    || qAbs(tabs->property("tabWidth").toDouble() * 2 - list->width()) > 1) {
-                    qWarning("Tabs did not expand equally to fill the wider pane.");
+                    || list->width() <= 0 || list->width() >= 240
+                    || tabs->property("tabWidth").toDouble() != 120
+                    || qAbs(list->property("contentWidth").toDouble() - 240) > 1) {
+                    qWarning("Narrow tab strip must overflow with two 120-pixel tabs (viewport=%.1f, tab=%.1f, content=%.1f).",
+                             list ? list->width() : -1,
+                             tabs ? tabs->property("tabWidth").toDouble() : -1,
+                             list ? list->property("contentWidth").toDouble() : -1);
+                    qmlWarning = true;
+                    return;
+                }
+                qInfo("Narrow tab strip: viewport=%.1f, tab=120, content=%.1f.",
+                      list->width(), list->property("contentWidth").toDouble());
+                controller.setLeftVisible(false);
+                controller.setRightVisible(false);
+            } else if (stage == 27) {
+                auto *list = findVisualItem(pane, "pane-tab-list-" + first->id());
+                auto *tabs = findVisualItem(pane, "pane-tabs-" + first->id());
+                if (!list || !tabs) { qmlWarning = true; return; }
+                if (list->width() <= 240) return; // Wait for the sidebar layout change.
+                if (first->tabs().size() != 2
+                    || qAbs(tabs->property("tabWidth").toDouble() * 2 - list->width()) > 1
+                    || qAbs(list->property("contentWidth").toDouble() - list->width()) > 1) {
+                    qWarning("Wide tab strip must fit two equally expanded tabs (viewport=%.1f, tab=%.1f, content=%.1f).",
+                             list->width(), tabs->property("tabWidth").toDouble(),
+                             list->property("contentWidth").toDouble());
+                    qmlWarning = true;
+                    return;
+                }
+                qInfo("Wide tab strip: viewport=%.1f, tab=%.1f, content=%.1f.",
+                      list->width(), tabs->property("tabWidth").toDouble(),
+                      list->property("contentWidth").toDouble());
+                controller.setLeftVisible(true);
+                controller.setRightVisible(true);
+            } else if (stage == 28) {
+                auto *list = findVisualItem(pane, "pane-tab-list-" + first->id());
+                auto *tabs = findVisualItem(pane, "pane-tabs-" + first->id());
+                if (!list || !tabs) { qmlWarning = true; return; }
+                if (list->width() >= 240) return;
+                if (tabs->property("tabWidth").toDouble() != 120
+                    || list->property("contentWidth").toDouble() <= list->width()) {
+                    qWarning("Tabs did not return to minimum-width overflow after restoring the sidebars.");
                     qmlWarning = true;
                     return;
                 }
