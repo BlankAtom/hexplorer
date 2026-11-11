@@ -3,11 +3,15 @@
 #include "DirectoryModel.h"
 #include <QRectF>
 #include <QJsonObject>
+#include <vector>
 
 class PaneController : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString id READ id CONSTANT)
-    Q_PROPERTY(DirectoryProxy* files READ files CONSTANT)
+    Q_PROPERTY(DirectoryProxy* files READ files NOTIFY activeTabChanged)
+    Q_PROPERTY(QVariantList tabs READ tabs NOTIFY tabsChanged)
+    Q_PROPERTY(int activeTab READ activeTab NOTIFY activeTabChanged)
+    Q_PROPERTY(int currentRow READ currentRow WRITE setCurrentRow NOTIFY currentRowChanged)
     Q_PROPERTY(QUrl url READ url NOTIFY locationChanged)
     Q_PROPERTY(QString path READ path NOTIFY locationChanged)
     Q_PROPERTY(QString title READ title NOTIFY locationChanged)
@@ -27,23 +31,32 @@ class PaneController : public QObject {
 public:
     explicit PaneController(QObject *parent = nullptr);
     QString id() const { return m_id; }
-    DirectoryProxy *files() { return &m_proxy; }
-    QUrl url() const { return m_url; }
+    DirectoryProxy *files() { return &current().proxy; }
+    QVariantList tabs() const;
+    int activeTab() const { return m_activeTab; }
+    int currentRow() const { return current().currentRow; }
+    void setCurrentRow(int row);
+    Q_INVOKABLE void newTab(QUrl url = {});
+    Q_INVOKABLE void switchTab(int index);
+    Q_INVOKABLE void closeTab(int index);
+    Q_INVOKABLE void nextTab(int direction = 1);
+    void refreshAllTabs();
+    QUrl url() const { return current().url; }
     QString path() const;
     QString title() const;
-    bool canBack() const { return m_historyIndex > 0; }
-    bool canForward() const { return m_historyIndex + 1 < m_history.size(); }
-    bool loading() const { return m_model.loading(); }
-    QString error() const { return m_model.error(); }
-    bool showHidden() const { return m_hidden; }
-    QString query() const { return m_query; }
-    int sortKey() const { return m_sortKey; }
-    bool descending() const { return m_descending; }
-    bool grid() const { return m_grid; }
-    double scrollPosition() const { return m_scrollPosition; }
+    bool canBack() const { return current().historyIndex > 0; }
+    bool canForward() const { return current().historyIndex + 1 < current().history.size(); }
+    bool loading() const { return current().model.loading(); }
+    QString error() const { return current().model.error(); }
+    bool showHidden() const { return current().hidden; }
+    QString query() const { return current().query; }
+    int sortKey() const { return current().sortKey; }
+    bool descending() const { return current().descending; }
+    bool grid() const { return current().grid; }
+    double scrollPosition() const { return current().scrollPosition; }
     QRectF rect() const { return m_rect; }
-    bool tagView() const { return m_url.scheme() == "hexplorer-tag"; }
-    QString tagId() const { return tagView() ? m_url.path().mid(1) : QString(); }
+    bool tagView() const { return url().scheme() == "hexplorer-tag"; }
+    QString tagId() const { return tagView() ? url().path().mid(1) : QString(); }
     void setTagStore(TagStore *store);
     Q_INVOKABLE void showTag(QString tag);
     static bool validLocation(const QUrl &url);
@@ -73,20 +86,37 @@ signals:
     void openFile(QUrl url);
     void errorOccurred(QString error);
     void selectionChanged();
+    void tabsChanged();
+    void activeTabAboutToChange();
+    void activeTabChanged();
+    void currentRowChanged();
 private:
+    struct TabState {
+        QString id;
+        DirectoryModel model;
+        DirectoryProxy proxy;
+        QUrl url;
+        QList<QUrl> history;
+        int historyIndex = -1;
+        bool hidden = false;
+        QString query;
+        int sortKey = 0;
+        bool descending = false;
+        bool grid = false;
+        double scrollPosition = 0;
+        int currentRow = -1;
+        bool loaded = false;
+    };
+    TabState &current() const { return *m_tabs.at(size_t(m_activeTab)); }
+    TabState *createTab();
+    void load(TabState &tab);
+    void notifyTabSwitch();
+    QJsonObject saveTab(const TabState &tab) const;
+    void restoreTab(TabState &tab, const QJsonObject &state);
     void visit(const QUrl &url);
     QString m_id;
-    DirectoryModel m_model;
-    DirectoryProxy m_proxy;
-    QUrl m_url;
-    QList<QUrl> m_history;
-    int m_historyIndex = -1;
-    bool m_hidden = false;
-    QString m_query;
-    int m_sortKey = 0;
-    bool m_descending = false;
-    bool m_grid = false;
-    double m_scrollPosition = 0;
+    std::vector<std::unique_ptr<TabState>> m_tabs;
+    int m_activeTab = 0;
     QRectF m_rect;
     TagStore *m_tags = nullptr;
 };

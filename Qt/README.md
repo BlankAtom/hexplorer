@@ -272,6 +272,8 @@ and those of newly created directories.
 |---|---|
 | Ctrl+1 / 2 / 3 / 4 | Layout preset |
 | Ctrl+Tab | Next file pane |
+| Ctrl+T / Ctrl+W | New tab / close active tab in the current pane |
+| Ctrl+PageDown / PageUp | Next / previous tab in the current pane |
 | Ctrl+L | Edit the current folder address |
 | Ctrl+F | Filter names in the current folder, not a recursive search |
 | Alt+Left / Right / Up | Back / forward / parent |
@@ -312,6 +314,40 @@ Windows uses a normal decorated top-level window instead of a simulated QML
 title bar, retaining native resize, snap, taskbar and system-menu behavior.
 Settings use `QSettings`, including the split tree, pane folders and sidebar
 sizes. Running tasks are not persisted as resumable jobs.
+
+### Per-pane browsing tabs
+
+Each file pane has its own tab strip **below the file view**. Use **+**,
+**Ctrl+T**, or **Pane options > New tab** to open another tab at the current
+location. A folder's context menu also offers **Open folder in new tab**.
+Click a tab to switch only its owning pane. The address, history, file
+selection, filter, sorting, view mode, focus row and vertical scroll position
+belong to that tab; file commands and preview follow the active tab.
+
+Tabs divide the available strip width equally, with a minimum of **120 logical
+pixels** per tab. When the strip overflows, the mouse wheel scrolls it
+horizontally without changing the open folder or selected tab. Horizontal
+trackpad gestures and the horizontal scrollbar also work. Switching or adding
+a tab brings it into view; resizing recalculates the widths.
+
+Use the tab's **x** or **Ctrl+W** to close it. The last tab cannot be closed,
+so closing tabs never unexpectedly closes a file pane. Use **Ctrl+PageDown**
+and **Ctrl+PageUp** for the next/previous tab, while **Ctrl+Tab** retains its
+existing meaning of switching file panes. Closing a tab does not cancel
+background file operations it already submitted.
+
+Workspace restoration remembers each pane's tabs, active tab, folders, history,
+filter, sorting, view mode and scroll positions. Older single-location pane
+settings migrate to one tab. Restored inactive tabs load their directory only
+when first activated; selections and the focus row are retained while tabs
+remain open, but are not restored across application restarts.
+
+This feature is intended for a `feat(tabs): ...` commit/squash title, so merging
+it to `main` can propose the next minor version through the Release PR flow
+described above. A push to a feature branch alone does not publish an installer
+or create a release tag. Keep `VERSION.txt` and the manifest unchanged until
+the version PR updates them together; never tag an unreleased feature commit
+with a version that disagrees with its embedded version.
 
 ## Safety and current scope
 

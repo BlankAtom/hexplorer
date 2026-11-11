@@ -299,7 +299,7 @@ bool AppController::drop(QList<QUrl> urls, QUrl destination, int action)
 }
 void AppController::refreshAll()
 {
-    for (auto *pane : m_workspace.panes()) pane->refresh();
+    for (auto *pane : m_workspace.panes()) pane->refreshAllTabs();
     updatePreview();
 }
 void AppController::saveSession()

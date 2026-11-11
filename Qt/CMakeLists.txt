@@ -65,6 +65,7 @@ qt_add_qml_module(HExplorer
     QML_FILES
         qml/Main.qml
         qml/FilePane.qml
+        qml/PaneTabs.qml
         qml/Sidebar.qml
         qml/TaskCenter.qml
         qml/TagMenu.qml

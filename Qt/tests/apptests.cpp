@@ -250,6 +250,42 @@ private slots:
         QVERIFY(!app.installUpdate()); // no verified package
         QCOMPARE(app.updates()->status(), QString("error"));
     }
+    void tabSwitchRoutesCommandsPreviewAndBackgroundTasks()
+    {
+        QTemporaryDir a;
+        QTemporaryDir b;
+        QTemporaryDir destination;
+        writeFile(a.filePath("first.txt"));
+        writeFile(b.filePath("second.txt"));
+        AppController app;
+        auto *pane = app.workspace()->activePane();
+        pane->navigate(QUrl::fromLocalFile(a.path()));
+        QTRY_VERIFY(!pane->loading());
+        pane->files()->selectAll();
+        QTRY_COMPARE(app.preview()->url(), QUrl::fromLocalFile(a.filePath("first.txt")));
+        app.tagSelection("red", true);
+        pane->newTab(QUrl::fromLocalFile(b.path()));
+        QTRY_VERIFY(!pane->loading());
+        QCOMPARE(pane->files()->selectionCount(), 0);
+        QTRY_VERIFY(app.preview()->url().isEmpty());
+        pane->files()->selectAll();
+        QTRY_COMPARE(app.preview()->url(), QUrl::fromLocalFile(b.filePath("second.txt")));
+        app.copy();
+        QCOMPARE(app.native()->clipboardFiles().value("urls").toList(), pane->files()->selectedUrls());
+        pane->switchTab(0);
+        QTRY_COMPARE(app.preview()->url(), QUrl::fromLocalFile(a.filePath("first.txt")));
+        QVERIFY(app.selectionTags().at(0).toMap().value("checked").toBool());
+        const auto sources = pane->files()->selectedUrls();
+        app.tasks()->submit("copy", sources, QUrl::fromLocalFile(destination.path()));
+        pane->closeTab(0);
+        QTRY_VERIFY(!app.busy());
+        QVERIFY(QFileInfo::exists(destination.filePath("first.txt")));
+        QVERIFY(!QFileInfo::exists(destination.filePath("second.txt")));
+        QCOMPARE(pane->url(), QUrl::fromLocalFile(b.path()));
+        QTRY_VERIFY(!pane->loading());
+        QCOMPARE(pane->files()->entry(0).value("fileName").toString(), QString("second.txt"));
+        QVERIFY(!app.selectionTags().at(0).toMap().value("checked").toBool());
+    }
     void corruptTagMetadataIsNotOverwritten()
     {
         QSettings settings;
