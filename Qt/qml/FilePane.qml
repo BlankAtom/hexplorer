@@ -177,6 +177,26 @@ FocusScope {
                     objectName: "file-item-" + entry.fileName
                     width: fileView.cellWidth
                     height: fileView.cellHeight
+                    function containsDragContent(x, y) {
+                        function containsContent(item, textOnly) {
+                            if (!item.visible) return false
+                            const point = entry.mapToItem(item, x, y)
+                            if (!textOnly)
+                                return point.x >= 0 && point.x < item.width && point.y >= 0 && point.y < item.height
+                            const availableWidth = item.width - item.leftPadding - item.rightPadding
+                            const availableHeight = item.height - item.topPadding - item.bottomPadding
+                            const contentWidth = Math.min(item.contentWidth, availableWidth)
+                            const contentHeight = Math.min(item.contentHeight, availableHeight)
+                            const top = item.topPadding + (item.verticalAlignment === Text.AlignVCenter
+                                ? (availableHeight - contentHeight) / 2
+                                : item.verticalAlignment === Text.AlignBottom ? availableHeight - contentHeight : 0)
+                            return point.x >= item.leftPadding && point.x < item.leftPadding + contentWidth
+                                && point.y >= top && point.y < top + contentHeight
+                        }
+                        return containsContent(fileIcon, false) || containsContent(fileNameLabel, true)
+                            || containsContent(originLabel, true) || containsContent(tagDots, false)
+                            || containsContent(sizeLabel, true) || containsContent(modifiedLabel, true)
+                    }
                     Rectangle {
                         anchors.fill: parent
                         anchors.margins: 2
@@ -205,6 +225,8 @@ FocusScope {
                         fillMode: Image.PreserveAspectFit
                     }
                     Label {
+                        id: fileNameLabel
+                        objectName: "file-name"
                         x: root.pane.grid ? 4 : 44
                         y: root.pane.grid ? 64 : root.pane.tagView ? 5 : (parent.height - height) / 2
                         width: root.pane.grid ? parent.width - 8 : parent.width - 112 - (root.width > 350 ? 80 : 0) - (root.width > 550 ? 150 : 0)
@@ -216,6 +238,8 @@ FocusScope {
                         horizontalAlignment: root.pane.grid ? Text.AlignHCenter : Text.AlignLeft
                     }
                     Label {
+                        id: originLabel
+                        objectName: "file-origin"
                         visible: root.pane.tagView && !root.pane.grid
                         x: 44; y: 30; width: parent.width - 54
                         text: entry.filePath
@@ -225,6 +249,7 @@ FocusScope {
                         opacity: 0.6
                     }
                     Row {
+                        id: tagDots
                         x: root.pane.grid ? (parent.width - width) / 2 : parent.width - 66 - (root.width > 350 ? 80 : 0) - (root.width > 550 ? 150 : 0)
                         y: root.pane.grid ? 56 : (parent.height - height) / 2
                         spacing: 2
@@ -237,6 +262,8 @@ FocusScope {
                         }
                     }
                     Label {
+                        id: sizeLabel
+                        objectName: "file-size"
                         visible: !root.pane.grid && root.width > 350
                         x: parent.width - 84 - (root.width > 550 ? 150 : 0)
                         width: 76
@@ -244,6 +271,8 @@ FocusScope {
                         text: entry.sizeText; font.pixelSize: 12; opacity: 0.7
                     }
                     Label {
+                        id: modifiedLabel
+                        objectName: "file-modified"
                         visible: !root.pane.grid && root.width > 550
                         x: parent.width - 154; width: 148
                         anchors.verticalCenter: parent.verticalCenter
@@ -310,6 +339,7 @@ FocusScope {
             }
             MouseArea {
                 id: blankMouse
+                objectName: "pane-box-selection"
                 anchors.fill: parent
                 z: 2
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
@@ -318,9 +348,19 @@ FocusScope {
                 property real startContentY: 0
                 property bool selecting: false
                 onPressed: function(mouse) {
-                    if (mouse.x > width - 18 || fileView.indexAt(mouse.x, mouse.y + fileView.contentY) >= 0) {
+                    if (mouse.x > width - 18) {
                         mouse.accepted = false
                         return
+                    }
+                    const index = fileView.indexAt(mouse.x, mouse.y + fileView.contentY)
+                    if (index >= 0) {
+                        const item = fileView.itemAtIndex(index)
+                        const point = item ? mapToItem(item, mouse.x, mouse.y) : null
+                        if (mouse.button !== Qt.LeftButton || root.pane.grid || !item
+                                || item.containsDragContent(point.x, point.y)) {
+                            mouse.accepted = false
+                            return
+                        }
                     }
                     root.workspace.activate(root.pane)
                     fileView.forceActiveFocus()

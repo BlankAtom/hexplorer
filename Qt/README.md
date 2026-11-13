@@ -288,7 +288,10 @@ and those of newly created directories.
 
 File-view shortcuts do not replace normal editing shortcuts in address,
 filter, or text-preview controls. Ctrl-click, Shift-click, arrow keys, and
-blank-space rectangle selection are supported.
+blank-space rectangle selection are supported. In list view, a left-button drag
+starts a file transfer only when the press lands on a displayed icon, filename,
+metadata text, tag dot, or tagged item's origin path. Pressing row whitespace
+instead starts rectangle selection, including unused space within a text column.
 
 ## Architecture
 
