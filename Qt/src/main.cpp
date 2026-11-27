@@ -178,7 +178,42 @@ int main(int argc, char *argv[])
         steps->setInterval(150);
         QElapsedTimer deadline;
         deadline.start();
-        QObject::connect(steps, &QTimer::timeout, &app, [&, simulateDrop, steps, deadline, stage = 0]() mutable {
+        auto checkListHitRegions = [&](QQuickItem *pane) {
+            auto *item = findVisualItem(pane, "file-item-Welcome.txt");
+            if (!item) {
+                qWarning("The list gesture fixture could not be found.");
+                qmlWarning = true;
+                return;
+            }
+            auto checkContent = [&](QQuickItem *target, QPointF localPoint, bool expected) {
+                const auto point = target->mapToItem(item, localPoint);
+                QVariant result;
+                if (!QMetaObject::invokeMethod(item, "containsDragContent", Q_RETURN_ARG(QVariant, result),
+                                              Q_ARG(QVariant, point.x()), Q_ARG(QVariant, point.y()))
+                    || result.toBool() != expected) {
+                    qWarning("Incorrect list content hit on %s at %.1f,%.1f (expected=%d).",
+                             qPrintable(target->objectName()), point.x(), point.y(), expected);
+                    qmlWarning = true;
+                }
+            };
+            for (const auto &contentName : {"file-icon", "file-name", "file-origin", "file-size", "file-modified"}) {
+                auto *content = findVisualItem(item, contentName);
+                if (!content || !content->isVisible()) continue;
+                const bool icon = content->objectName() == "file-icon";
+                const auto textWidth = content->width() - content->property("leftPadding").toReal()
+                    - content->property("rightPadding").toReal();
+                const auto x = icon ? content->width() / 2
+                    : content->property("leftPadding").toReal()
+                        + qMin(content->property("contentWidth").toReal(), textWidth) / 2;
+                checkContent(content, {x, content->height() / 2}, true);
+                if (!icon && textWidth > content->property("contentWidth").toReal() + 4)
+                    checkContent(content, {content->property("leftPadding").toReal()
+                        + content->property("contentWidth").toReal() + 2, content->height() / 2}, false);
+            }
+            checkContent(item, {36, item->height() / 2}, false);
+            checkContent(item, {item->width() / 2, 1}, false);
+        };
+        QObject::connect(steps, &QTimer::timeout, &app, [&, simulateDrop, checkListHitRegions, steps, deadline, stage = 0]() mutable {
             if (qmlWarning || deadline.elapsed() > 25000) {
                 qWarning("Smoke test stopped in stage %d (warnings=%d).", stage, qmlWarning);
                 steps->stop();
@@ -201,7 +236,10 @@ int main(int argc, char *argv[])
                 }
                 auto *item = findVisualItem(pane, "file-item-Welcome.txt");
                 if (!item || first->loading()) return;
-                const auto point = item->mapToScene({item->width() / 2, item->height() / 2});
+                checkListHitRegions(pane);
+                auto *name = findVisualItem(item, "file-name");
+                if (!name) return;
+                const auto point = name->mapToScene({2, name->height() / 2});
                 QMouseEvent press(QEvent::MouseButtonPress, point, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
                 QMouseEvent release(QEvent::MouseButtonRelease, point, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
                 QCoreApplication::sendEvent(window, &press);
@@ -301,6 +339,7 @@ int main(int argc, char *argv[])
                 controller.preview()->preview(QUrl::fromLocalFile(smokeDirectory->filePath("Pictures\\Sample.png")));
             } else if (stage == 17) {
                 if (controller.preview()->kind() != "image") return;
+                checkListHitRegions(pane);
                 if (parser.isSet("smoke-screenshot")
                     && !window->grabWindow().save(parser.value("smoke-screenshot") + ".dark.png"))
                     qmlWarning = true;
@@ -459,6 +498,38 @@ int main(int argc, char *argv[])
                     qmlWarning = true;
                     return;
                 }
+                controller.workspace()->activate(first);
+                controller.workspace()->preset(1);
+                controller.setLeftVisible(false);
+                controller.setRightVisible(false);
+            } else if (stage == 29) {
+                auto *item = findVisualItem(pane, "file-item-Welcome.txt");
+                auto *modified = findVisualItem(item, "file-modified");
+                if (first->loading() || !modified || !modified->isVisible()) return;
+                checkListHitRegions(pane);
+                auto *boxSelection = findVisualItem(pane, "pane-box-selection");
+                if (!boxSelection) { qmlWarning = true; return; }
+                const auto start = item->mapToScene({36, item->height() / 2});
+                const auto end = start + QPointF(-30, 10);
+                QMouseEvent press(QEvent::MouseButtonPress, start, start, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                QCoreApplication::sendEvent(window, &press);
+                if (!boxSelection->property("selecting").toBool()) {
+                    qWarning("Pressing row whitespace did not start box selection.");
+                    qmlWarning = true;
+                    return;
+                }
+                QMouseEvent move(QEvent::MouseMove, end, end, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+                QCoreApplication::sendEvent(window, &move);
+                if (pane->property("draggingFiles").toBool() || first->files()->selectionCount() == 0) {
+                    qWarning("Dragging row whitespace did not box-select files.");
+                    qmlWarning = true;
+                }
+                QMouseEvent release(QEvent::MouseButtonRelease, end, end, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                QCoreApplication::sendEvent(window, &release);
+                if (boxSelection->property("selecting").toBool()) qmlWarning = true;
+                controller.workspace()->preset(2);
+                controller.setLeftVisible(true);
+                controller.setRightVisible(true);
             } else {
                 if (parser.isSet("smoke-screenshot")
                     && !window->grabWindow().save(parser.value("smoke-screenshot")))
